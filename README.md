@@ -1,0 +1,177 @@
+# dtq: Double-double, Triple-double, and Quadruple-double precision arithmetic on CPU
+================================================
+DTQ Version 0.0.2
+Copyright (C) 2026 Tomonori Kouya
+based on QD library Version 2.13
+================================================
+
+dtq is an extension of the QD library (Yozo Hida, Xiaoye S. Li, David H.
+Bailey; LBNL) that provides multi-precision floating-point types implemented
+as unevaluated sums of IEEE-754 values.
+
+Double-based types (each limb is an IEEE-754 double):
+
+  * dd_real - double-double  (~32 decimal digits, ~106-bit significand)
+  * td_real - triple-double  (~47 decimal digits, ~156-bit significand)
+  * qd_real - quad-double    (~63 decimal digits, ~212-bit significand)
+
+Float-based types (each limb is an IEEE-754 single, added in 0.0.2):
+
+  * ds_real - double-single  (~14 decimal digits)
+  * ts_real - triple-single  (~21 decimal digits)
+  * qs_real - quad-single    (~28 decimal digits)
+
+The td_real / ts_real / ds_real / qs_real types are new in this package;
+dd_real and qd_real follow the original QD interface so existing QD-based
+code should compile unchanged.
+
+A short usage guide is shipped under [docs/](docs/):
+
+  * [docs/DTQ_QUICKREF.en.md](docs/DTQ_QUICKREF.en.md) - English
+  * [docs/DTQ_QUICKREF.ja.md](docs/DTQ_QUICKREF.ja.md) - Japanese
+
+For the GPU (CUDA) counterpart, see the separate `gdtq` package.
+
+
+-----------------------------------------------------------------------
+Requirements
+-----------------------------------------------------------------------
+  * A C++ compiler with IEEE-754 double precision (GCC, Clang, ICC, ...).
+  * GNU make.
+  * (Optional) autoconf / automake / libtool, only if you want to
+    regenerate ./configure from configure.ac.
+
+
+-----------------------------------------------------------------------
+Build and install
+-----------------------------------------------------------------------
+Standard autotools flow:
+
+    ./configure
+    make
+    make check       # run the test suite
+    sudo make install
+
+Useful configure options:
+
+    --prefix=DIR          install under DIR (default /usr/local)
+    --enable-fma=auto     use fused multiply-add when available  (default)
+    --enable-fma=no       do not use FMA
+    --enable-debug        compile with -g and debug checks
+    --disable-shared      build a static library only
+
+Notes on floating-point flags:
+
+  * -ffp-contract=off is added automatically for GCC/Clang.  This is
+    REQUIRED: the error-free transformations used by dd_real / td_real /
+    qd_real (TwoSum, TwoProd, ...) lose precision if the compiler is
+    allowed to silently fuse a*b+c into an FMA.
+  * On x86_64, -mfma is added automatically when supported so that the
+    explicit FMA used inside the library compiles to a hardware FMA3
+    instruction.  AArch64 / IA-64 / PowerPC have FMA in the base ISA.
+
+`make dist` produces a single `.tar.xz` tarball (gzip output is disabled
+by default; use `make dist-gzip` if you need a `.tar.gz`).
+
+If ./configure does not exist (e.g. fresh checkout) or you modified
+configure.ac, regenerate it with:
+
+    autoreconf -fi
+
+
+-----------------------------------------------------------------------
+Using the library from C++
+-----------------------------------------------------------------------
+Minimal example (example.cpp):
+
+    #include <iostream>
+    #include <iomanip>
+    #include <qd/dd_real.h>
+    #include <qd/td_real.h>
+    #include <qd/qd_real.h>
+    #include <qd/fpu.h>
+
+    int main() {
+      unsigned int old_cw;
+      fpu_fix_start(&old_cw);              // x86 FPU fix (no-op elsewhere)
+
+      dd_real a = dd_real::_pi;
+      td_real b = sqrt(td_real(2.0));
+      qd_real c = exp(qd_real(1.0));
+
+      std::cout << std::setprecision(dd_real::_ndigits) << "pi      = " << a << "\n";
+      std::cout << std::setprecision(td_real::_ndigits) << "sqrt(2) = " << b << "\n";
+      std::cout << std::setprecision(qd_real::_ndigits) << "e       = " << c << "\n";
+
+      fpu_fix_end(&old_cw);
+      return 0;
+    }
+
+Compile and link using qd-config:
+
+    g++ `qd-config --cxxflags` example.cpp `qd-config --libs` -o example
+
+Or by hand, after `make install`:
+
+    g++ -O2 -ffp-contract=off example.cpp -lqd -lm -o example
+
+The float-based types (ds_real / ts_real / qs_real) follow the same shape;
+include `<qd/ds_real.h>` etc. and use `ds_real::_ndigits` for the matching
+output precision. See [docs/DTQ_QUICKREF.en.md](docs/DTQ_QUICKREF.en.md) for
+the full operator / function / constant list.
+
+When building C++ code that uses this library, always pass
+-ffp-contract=off (or build through qd-config, which already does).
+
+
+-----------------------------------------------------------------------
+Using the library from C
+-----------------------------------------------------------------------
+A C API is provided through <qd/c_dd.h>, <qd/c_td.h>, <qd/c_qd.h>.
+Each precision is represented as a plain double array of length 2 / 3 / 4
+respectively.  See tests/c_test.c for a worked example.
+
+    #include <qd/c_qd.h>
+
+    double a[4], b[4];
+    c_qd_copy_d(2.0, a);
+    c_qd_sqrt(a, b);                  /* b = sqrt(2) in quad-double */
+    c_qd_write(b);
+
+Link with -lqd (the C wrappers live in the same library).  Because the
+wrappers are implemented in C++, the final link needs libstdc++; pass
+`-lstdc++ -lm` after `-lqd` when driving the link with `gcc`, or simply
+link with `g++`.
+
+The float-based ds/ts/qs types do **not** have a C API; use them from C++
+only.
+
+
+-----------------------------------------------------------------------
+Programs in tests/
+-----------------------------------------------------------------------
+  * qd_test    - sanity checks for dd_real, td_real, qd_real
+  * pslq_test  - PSLQ integer-relation search at all four precisions
+  * c_test     - exercises the C API for all three precisions
+  * qd_timer   - micro-benchmark (built via "make demo")
+  * quadt_test - tanh-sinh quadrature demo (built via "make demo")
+  * huge       - large-number formatting demo (built via "make demo")
+
+Run individual programs after `make check` (or `make demo`) from the
+tests/ directory, e.g.:
+
+    ./qd_test -v          # verbose output for every precision
+    ./qd_test -td         # only triple-double tests
+    ./pslq_test -all -v
+
+
+-----------------------------------------------------------------------
+Reporting issues
+-----------------------------------------------------------------------
+Please send bug reports and patches to <tkouya@gmail.com>.
+
+The original QD library is described in:
+
+  Y. Hida, X. S. Li, D. H. Bailey, "Algorithms for Quad-Double
+  Precision Floating Point Arithmetic", Proc. 15th IEEE Symposium on
+  Computer Arithmetic (ARITH-15), 2001.

@@ -1,0 +1,33 @@
+# Build artifacts (object files / libtool / deps)
+*.o
+*.lo
+*.la
+*.a
+*.lai
+.libs/
+.deps/
+*.Plo
+*.Po
+
+# Autotools / configure generated state
+Makefile
+config.h
+config.log
+config.status
+stamp-h1
+libtool
+autom4te.cache/
+
+# Configure-generated files
+/qd-config
+include/qd/qd_config.h
+include/qd/stamp-h2
+
+# Backup files
+*~
+config.h.in~
+configure~
+
+# Editor / OS
+.DS_Store
+*.swp

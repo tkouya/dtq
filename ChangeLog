@@ -1,0 +1,5 @@
+commit a5dbb6136ac1739e7e6955bf7b0c0fa05f3b2cbd
+Author: Jack Poulson <poulson@stanford.edu>
+Date:   Sun Jan 10 09:28:32 2016 -0800
+
+    Initial commit of QD 2.3.17 (with ._ files removed)

@@ -1,0 +1,11 @@
+SRC = c_dd.cpp c_qd.cpp c_td.cpp dd_real.cpp dd_const.cpp \
+      fpu.cpp qd_real.cpp qd_const.cpp td_real.cpp td_const.cpp \
+      ds_real.cpp ts_real.cpp qs_real.cpp \
+      util.cpp bits.cpp util.h
+
+lib_LTLIBRARIES = libqd.la
+
+libqd_la_SOURCES = $(SRC)
+
+AM_CPPFLAGS = -I$(top_builddir) -I$(top_builddir)/include -I$(top_srcdir)/include
+

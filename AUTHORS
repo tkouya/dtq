@@ -1,0 +1,25 @@
+dtq: double-double / triple-double / quad-double precision arithmetic
+---------------------------------------------------------------------
+
+Maintainer
+----------
+Tomonori Kouya                              <tkouya@gmail.com>
+  - dtq package maintainer
+  - triple-double (td_real) implementation
+  - extensions to the build system, test suite, and C wrappers
+    (Copyright (c) 2026)
+
+
+Original QD library authors
+---------------------------
+Yozo Hida        U.C. Berkeley               <yozo@cs.berkeley.edu>
+Xiaoye S. Li     Lawrence Berkeley Natl Lab  <xiaoye@nersc.gov>
+David H. Bailey  Lawrence Berkeley Natl Lab  <dhbailey@lbl.gov>
+
+
+Original QD contributors
+------------------------
+Yves Renard      <Yves.Renard@gmm.insa-tlse.fr>
+  - provided initial autotoolization (autoconf / automake / libtool)
+E. Jason Riedy   <ejr@cs.berkeley.edu>
+  - various bug fixes and code cleanup
