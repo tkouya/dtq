@@ -28,6 +28,11 @@ include/qd/stamp-h2
 config.h.in~
 configure~
 
+# Distribution archives (published via GitHub Releases instead)
+*.tar.gz
+*.tar.xz
+*.tar.bz2
+
 # Editor / OS
 .DS_Store
 *.swp
