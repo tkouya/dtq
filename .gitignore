@@ -36,3 +36,15 @@ configure~
 # Editor / OS
 .DS_Store
 *.swp
+
+# Test binaries and automake test-suite output
+/tests/qd_test
+/tests/pslq_test
+/tests/c_test
+/tests/fma_test
+/tests/fma_bench
+/tests/qd_timer
+/tests/quadt_test
+/tests/huge
+/tests/*.log
+/tests/*.trs

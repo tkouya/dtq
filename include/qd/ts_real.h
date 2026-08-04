@@ -82,6 +82,8 @@ struct QD_API ts_real {
 
   static ts_real sloppy_div(const ts_real &a, const ts_real &b);
   static ts_real accurate_div(const ts_real &a, const ts_real &b);
+  /* Division built on the branch-free triple-word FMA (tw_fma). */
+  static ts_real fma_div(const ts_real &a, const ts_real &b);
 
   ts_real &operator/=(float a);
   ts_real &operator/=(const ts_real &a);
@@ -130,6 +132,19 @@ QD_API inline bool isfinite(const ts_real &a) { return a.isfinite(); }
 QD_API inline bool isinf(const ts_real &a) { return a.isinf(); }
 
 QD_API ts_real mul_pwr2(const ts_real &a, float b);
+
+/*********** Branch-free triple-word FMA (T. Kouya) ************/
+/* tw_fma(a, b, c) computes  a * b + c  as a single fused triple-word
+   operation, without renormalizing a * b on its own. */
+QD_API ts_real tw_fma(const ts_real &a, const ts_real &b, const ts_real &c);
+QD_API ts_real tw_fma(const ts_real &a, float b, const ts_real &c);
+
+/* Generic spelling; same operation. */
+QD_API ts_real fma(const ts_real &a, const ts_real &b, const ts_real &c);
+QD_API ts_real fma(const ts_real &a, float b, const ts_real &c);
+
+/* Reference (pre-0.0.3) implementation, kept for benchmarking. */
+QD_API ts_real sqrt_legacy(const ts_real &a);
 
 QD_API ts_real operator+(const ts_real &a, const ts_real &b);
 QD_API ts_real operator+(const ds_real &a, const ts_real &b);
@@ -320,6 +335,81 @@ inline ts_real ldexp(const ts_real &a, int n) {
   return ts_real(std::ldexp(a[0], n), std::ldexp(a[1], n), std::ldexp(a[2], n));
 }
 
+// 2026-08-04 T.Kouya
+// Branch free algorithm: triple-word FMA,  z = a * b + c  (float limbs).
+// Same network as the td_real version; see include/qd/td_inline.h.
+inline ts_real tw_fma(const ts_real &a, const ts_real &b, const ts_real &c) {
+  float a0, b0, c0, d0, e0, f0, g0;
+  float a1, b1, c1, d1, e1, f1;
+  float a2, b2, c2;
+  float a3, b3;
+  float a4, b4;
+  float a5, b5;
+  float a6, b6;
+
+  /* --- products --- */
+  a0 = qs::two_prod(a[0], b[0], b0);          /* level 0 / level 1 */
+  c0 = qs::two_prod(a[0], b[1], e0);          /* level 1 / level 2 */
+  d0 = qs::two_prod(a[1], b[0], f0);          /* level 1 / level 2 */
+  g0 = a[0] * b[2] + a[1] * b[1] + a[2] * b[0];   /* level 2 */
+
+  /* --- level 0 --- */
+  a1 = qs::two_sum(a0, c[0], b1);
+
+  /* --- level 1 --- */
+  c1 = qs::two_sum(c0, d0, d1);
+  e1 = qs::two_sum(b0, c[1], f1);
+  a2 = qs::two_sum(c1, e1, b2);
+  a3 = qs::two_sum(a2, b1, b3);
+
+  /* --- level 2 --- */
+  c2 = ((e0 + f0) + (g0 + c[2])) + ((d1 + f1) + (b2 + b3));
+
+  /* --- branch-free renormalization --- */
+  a4 = qs::quick_two_sum(a3, c2, b4);
+  a5 = qs::quick_two_sum(a1, a4, b5);
+  a6 = qs::quick_two_sum(b5, b4, b6);
+
+  return ts_real(a5, a6, b6);
+}
+
+/* triple-word FMA with a plain float multiplier:  a * b + c. */
+inline ts_real tw_fma(const ts_real &a, float b, const ts_real &c) {
+  float a0, b0, c0, d0, e0;
+  float a1, b1, c1, d1;
+  float a2, b2;
+  float a3, b3, c3;
+  float a4, b4;
+  float a5, b5;
+  float a6, b6;
+
+  a0 = qs::two_prod(a[0], b, b0);
+  c0 = qs::two_prod(a[1], b, d0);
+  e0 = a[2] * b;
+
+  a1 = qs::two_sum(a0, c[0], b1);
+
+  c1 = qs::two_sum(b0, c0, d1);
+  a2 = qs::two_sum(c[1], b1, b2);
+  a3 = qs::two_sum(c1, a2, b3);
+
+  c3 = ((d0 + e0) + c[2]) + ((d1 + b2) + b3);
+
+  a4 = qs::quick_two_sum(a3, c3, b4);
+  a5 = qs::quick_two_sum(a1, a4, b5);
+  a6 = qs::quick_two_sum(b5, b4, b6);
+
+  return ts_real(a5, a6, b6);
+}
+
+inline ts_real fma(const ts_real &a, const ts_real &b, const ts_real &c) {
+  return tw_fma(a, b, c);
+}
+
+inline ts_real fma(const ts_real &a, float b, const ts_real &c) {
+  return tw_fma(a, b, c);
+}
+
 inline ts_real ts_real::sloppy_div(const ts_real &a, const ts_real &b) {
   float q0, q1, q2;
   ts_real r;
@@ -344,8 +434,29 @@ inline ts_real ts_real::accurate_div(const ts_real &a, const ts_real &b) {
   qs::renorm3(q0, q1, q2, q3);
   return ts_real(q0, q1, q2);
 }
+/* Long division driven by the branch-free triple-word FMA.  Same
+   correction sequence as sloppy_div (the ts_real default), but each
+   residual  r <- r - q * b  is one fused tw_fma. */
+inline ts_real ts_real::fma_div(const ts_real &a, const ts_real &b) {
+  float q0, q1, q2;
+  ts_real r;
+
+  q0 = a[0] / b[0];
+  r = tw_fma(b, -q0, a);
+  q1 = r[0] / b[0];
+  r = tw_fma(b, -q1, r);
+  q2 = r[0] / b[0];
+
+  qs::renorm3(q0, q1, q2);
+  return ts_real(q0, q1, q2);
+}
+
 inline ts_real operator/(const ts_real &a, const ts_real &b) {
+#ifdef QD_NO_FMA_DIV
   return ts_real::sloppy_div(a, b);
+#else
+  return ts_real::fma_div(a, b);
+#endif
 }
 inline ts_real operator/(const ts_real &a, float b) { return a / ts_real(b); }
 inline ts_real operator/(float a, const ts_real &b) { return ts_real(a) / b; }

@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 #define([QD_PATCH_VERSION], 12)
-define([QD_PATCH_VERSION], 2)
+define([QD_PATCH_VERSION], 3)
 AC_PREREQ(2.60)
 #AC_INIT(qd, 2.3.QD_PATCH_VERSION, yozo@cs.berkeley.edu)
 AC_INIT(dtq, 0.0.QD_PATCH_VERSION, tkouya@gmail.com)

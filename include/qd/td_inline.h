@@ -559,6 +559,88 @@ inline td_real operator*(const td_real &a, const td_real &b) {
 #endif
 }
 
+// 2026-08-04 T.Kouya
+// Branch free algorithm: triple-word FMA,  z = a * b + c.
+//
+// Every term of the exact product a*b and every word of c is assigned to
+// the magnitude level it belongs to (level 0 ~ 1, level 1 ~ eps,
+// level 2 ~ eps^2).  The levels are accumulated with two_sum, the errors
+// spilling one level down, and the three level accumulators are
+// renormalized by the same quick_two_sum network used by td_real::bf_mul.
+// No branch anywhere, and a*b is never renormalized on its own.
+inline td_real tw_fma(const td_real &a, const td_real &b, const td_real &c) {
+  double a0, b0, c0, d0, e0, f0, g0;
+  double a1, b1, c1, d1, e1, f1;
+  double a2, b2, c2;
+  double a3, b3;
+  double a4, b4;
+  double a5, b5;
+  double a6, b6;
+
+  /* --- products ------------------------------------------------- */
+  a0 = qd::two_prod(a[0], b[0], b0);         /* level 0 / level 1 */
+  c0 = qd::two_prod(a[0], b[1], e0);         /* level 1 / level 2 */
+  d0 = qd::two_prod(a[1], b[0], f0);         /* level 1 / level 2 */
+  g0 = a[0] * b[2] + a[1] * b[1] + a[2] * b[0];   /* level 2 */
+
+  /* --- level 0 : leading product word + c[0] --------------------- */
+  a1 = qd::two_sum(a0, c[0], b1);            /* b1 spills to level 1 */
+
+  /* --- level 1 : b0, c0, d0, c[1], b1 ---------------------------- */
+  c1 = qd::two_sum(c0, d0, d1);
+  e1 = qd::two_sum(b0, c[1], f1);
+  a2 = qd::two_sum(c1, e1, b2);
+  a3 = qd::two_sum(a2, b1, b3);              /* level-1 accumulator a3 */
+
+  /* --- level 2 : all spills and the eps^2 product terms ---------- */
+  c2 = ((e0 + f0) + (g0 + c[2])) + ((d1 + f1) + (b2 + b3));
+
+  /* --- branch-free renormalization (as in td_real::bf_mul) ------- */
+  a4 = qd::quick_two_sum(a3, c2, b4);        /* level 1 + level 2 */
+  a5 = qd::quick_two_sum(a1, a4, b5);        /* level 0 + level 1 */
+  a6 = qd::quick_two_sum(b5, b4, b6);
+
+  return td_real(a5, a6, b6);
+}
+
+/* triple-word FMA with a plain double multiplier:  a * b + c. */
+inline td_real tw_fma(const td_real &a, double b, const td_real &c) {
+  double a0, b0, c0, d0, e0;
+  double a1, b1, c1, d1;
+  double a2, b2;
+  double a3, b3, c3;
+  double a4, b4;
+  double a5, b5;
+  double a6, b6;
+
+  a0 = qd::two_prod(a[0], b, b0);            /* level 0 / level 1 */
+  c0 = qd::two_prod(a[1], b, d0);            /* level 1 / level 2 */
+  e0 = a[2] * b;                             /* level 2 */
+
+  a1 = qd::two_sum(a0, c[0], b1);            /* level 0, spill b1 */
+
+  c1 = qd::two_sum(b0, c0, d1);
+  a2 = qd::two_sum(c[1], b1, b2);
+  a3 = qd::two_sum(c1, a2, b3);              /* level-1 accumulator a3 */
+
+  c3 = ((d0 + e0) + c[2]) + ((d1 + b2) + b3);
+
+  /* branch-free renormalization */
+  a4 = qd::quick_two_sum(a3, c3, b4);        /* level 1 + level 2 */
+  a5 = qd::quick_two_sum(a1, a4, b5);        /* level 0 + level 1 */
+  a6 = qd::quick_two_sum(b5, b4, b6);
+
+  return td_real(a5, a6, b6);
+}
+
+inline td_real fma(const td_real &a, const td_real &b, const td_real &c) {
+  return tw_fma(a, b, c);
+}
+
+inline td_real fma(const td_real &a, double b, const td_real &c) {
+  return tw_fma(a, b, c);
+}
+
 /* triple-double ^ 2  = (x0 + x1 + x2) ^ 2
                       = x0^2 + 2 x0 x1 + (2 x0 x2 + x1^2) + 2 x1 x2 + x2^2 */
 inline td_real sqr(const td_real &a) {
@@ -609,8 +691,10 @@ inline td_real operator/(const td_real &a, const dd_real &b) {
 inline td_real operator/(const td_real &a, const td_real &b) {
 #ifdef QD_SLOPPY_DIV
   return td_real::sloppy_div(a, b);
-#else
+#elif defined(QD_NO_FMA_DIV)
   return td_real::accurate_div(a, b);
+#else
+  return td_real::fma_div(a, b);
 #endif
 }
 

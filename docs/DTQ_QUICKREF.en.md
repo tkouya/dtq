@@ -3,7 +3,7 @@
 A short reference for using `dtq` (a CPU-side multi-precision floating-point
 library derived from QD 2.13) from your own project.
 
-Target version: **dtq-0.0.2**
+Target version: **dtq-0.0.3**
 
 For the GPU (CUDA) counterpart, see the separate `gdtq` package.
 
@@ -130,12 +130,39 @@ g++ -O2 -ffp-contract=off -I/usr/local/include \
 | Arithmetic | `+ - * /`, `+= -= *= /=` (`X_real op X_real`, `X_real op double`, `double op X_real`) |
 | Comparison | `== != < <= > >=` |
 | Unary | `-a`, `abs(a)`, `sqr(a)`, `sqrt(a)`, `nroot(a, n)`, `npwr(a, n)` |
+| Fused multiply-add | `fma(a, b, c)` = `a*b + c`, also spelled `dw_fma` (dd/ds), `tw_fma` (td/ts), `qw_fma` (qd/qs) |
 | Rounding | `nint(a)`, `floor(a)`, `ceil(a)`, `aint(a)` |
 | Exp / log | `exp(a)`, `log(a)`, `log10(a)` |
 | Trig | `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2(y, x)`, `sincos(a, s, c)` |
 | Hyperbolic | `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh` |
 | I/O | `std::cout << a`, `std::cin >> a`, `a.to_string(precision)`, `X_real("123.456")` |
 | Predicates | `a.is_zero()`, `a.is_one()`, `a.is_positive()`, `a.is_negative()`, `a.isnan()`, `a.isinf()`, `a.isfinite()` |
+
+### 3.3b Branch-free fused multiply-add (new in 0.0.3)
+
+`a * b + c` is available as a single fused, branch-free operation for
+every precision class:
+
+```cpp
+dd_real z = dw_fma(a, b, c);   // double-word  (dd_real, ds_real)
+td_real z = tw_fma(a, b, c);   // triple-word  (td_real, ts_real)
+qd_real z = qw_fma(a, b, c);   // quad-word    (qd_real, qs_real)
+
+qd_real z = fma(a, b, c);      // generic spelling, works for all six
+qd_real z = qw_fma(a, 2.5, c); // multiplier may be a bare double / float
+```
+
+The terms of the exact product and the words of the addend are
+accumulated in one straight-line network, so the product is never
+renormalized on its own: fewer operations than `a * b + c`, and never
+less accurate.
+
+Division and square root are built on these routines.  `operator/` calls
+`T::fma_div`; compile with `-DQD_NO_FMA_DIV` to fall back to the 0.0.2
+`sloppy_div` / `accurate_div`.  `sqrt` uses fused Newton steps; the 0.0.2
+implementation remains available as `sqrt_legacy(a)`.
+
+Run `make bench` in `tests/` for old-vs-new timings on your machine.
 
 ### 3.4 Constants (same names across dd/td/qd)
 
@@ -206,7 +233,7 @@ c_<prec>_<op>[ _<argtypes>]
 ```
 
 `<prec>` is `dd` / `td` / `qd`. `<op>` is one of `add`, `sub`, `mul`, `div`,
-`sqr`, `sqrt`, `exp`, `log`, `sin`, `cos`, `tan`, `pi`, `copy`, `comp` (compare),
+`sqr`, `sqrt`, `fma`, `exp`, `log`, `sin`, `cos`, `tan`, `pi`, `copy`, `comp` (compare),
 …. Compound assignments take the form `c_<prec>_self<op>` (for example,
 `c_qd_selfmul_d(2.0, p)` is `p *= 2.0`).
 
@@ -233,6 +260,8 @@ The C wrappers are implemented in C++, so linking needs `libstdc++`
 | `tests/qd_test` | sanity / accuracy checks for dd/td/qd math functions |
 | `tests/c_test` | exercises the C wrappers (Salamin–Brent for π) |
 | `tests/pslq_test` | PSLQ integer-relation search at all precisions |
+| `tests/fma_test` | accuracy of `dw_fma`/`tw_fma`/`qw_fma` and of the division and square root built on them (run by `make check`) |
+| `tests/fma_bench` | old-vs-new timings for the same (`make bench`) |
 | `tests/qd_timer` | simple benchmark (built via `make demo`) |
 | `tests/quadt_test` | tanh-sinh quadrature (built via `make demo`) |
 | `tests/huge` | huge-number formatting demo (`make demo`) |

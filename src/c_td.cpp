@@ -73,6 +73,17 @@ void c_td_sub_d_td(double a, const double *b, double *c) {
 
 
 /* mul */
+void c_td_fma(const double *a, const double *b, const double *c, double *d) {
+  td_real dd;
+  dd = tw_fma(td_real(a), td_real(b), td_real(c));
+  TO_DOUBLE_PTR(dd, d);
+}
+void c_td_fma_td_d(const double *a, double b, const double *c, double *d) {
+  td_real dd;
+  dd = tw_fma(td_real(a), b, td_real(c));
+  TO_DOUBLE_PTR(dd, d);
+}
+
 void c_td_mul(const double *a, const double *b, double *c) {
   td_real cc;
   cc = td_real(a) * td_real(b);

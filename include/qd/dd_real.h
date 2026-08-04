@@ -123,7 +123,9 @@ struct QD_API dd_real {
   static dd_real div(double a, double b);
   static dd_real sloppy_div(const dd_real &a, const dd_real &b);
   static dd_real accurate_div(const dd_real &a, const dd_real &b);
-  
+  /* Division built on the branch-free double-word FMA (dw_fma). */
+  static dd_real fma_div(const dd_real &a, const dd_real &b);
+
   dd_real &operator/=(double a);
   dd_real &operator/=(const dd_real &a);
 
@@ -185,6 +187,23 @@ QD_API inline bool isinf(const dd_real &a) { return a.isinf(); }
 
 /* Computes  dd * d  where d is known to be a power of 2. */
 QD_API dd_real mul_pwr2(const dd_real &dd, double d);
+
+/*********** Branch-free double-word FMA (T. Kouya) ************/
+/* dw_fma(a, b, c) computes  a * b + c  as a single fused double-word
+   operation.  The product and the addend are accumulated in one
+   straight-line (branch-free) network, so the intermediate result
+   a * b is never renormalized on its own.  This is both cheaper and
+   slightly more accurate than writing  a * b + c. */
+QD_API dd_real dw_fma(const dd_real &a, const dd_real &b, const dd_real &c);
+QD_API dd_real dw_fma(const dd_real &a, double b, const dd_real &c);
+QD_API dd_real dw_fma(double a, double b, const dd_real &c);
+
+/* Generic spelling; same operation. */
+QD_API dd_real fma(const dd_real &a, const dd_real &b, const dd_real &c);
+QD_API dd_real fma(const dd_real &a, double b, const dd_real &c);
+
+/* Reference (pre-0.0.3) implementation, kept for benchmarking. */
+QD_API dd_real sqrt_legacy(const dd_real &a);
 
 QD_API dd_real operator+(const dd_real &a, double b);
 QD_API dd_real operator+(double a, const dd_real &b);

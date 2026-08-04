@@ -20,6 +20,7 @@
 
 #include "config.h"
 #include <qd/qd_real.h>
+#include <qd/td_real.h>   /* sqrt() refines through td_real precision */
 #include "util.h"
 
 #include <qd/bits.h>
@@ -735,6 +736,34 @@ qd_real qd_real::accurate_div(const qd_real &a, const qd_real &b) {
   return qd_real(q0, q1, q2, q3);
 }
 
+/* Long division driven by the branch-free quad-word FMA.  Same correction
+   sequence as accurate_div, but each residual  r <- r - q * b  is a single
+   fused qw_fma instead of a multiply followed by a subtraction, which
+   removes one renormalization per step. */
+qd_real qd_real::fma_div(const qd_real &a, const qd_real &b) {
+  double q0, q1, q2, q3, q4;
+
+  qd_real r;
+
+  q0 = a[0] / b[0];
+  r = qw_fma(b, -q0, a);        /* r = a - q0 * b */
+
+  q1 = r[0] / b[0];
+  r = qw_fma(b, -q1, r);
+
+  q2 = r[0] / b[0];
+  r = qw_fma(b, -q2, r);
+
+  q3 = r[0] / b[0];
+  r = qw_fma(b, -q3, r);
+
+  q4 = r[0] / b[0];
+
+  ::renorm(q0, q1, q2, q3, q4);
+
+  return qd_real(q0, q1, q2, q3);
+}
+
 QD_API qd_real sqrt(const qd_real &a) {
   /* Strategy:  
 
@@ -754,6 +783,42 @@ QD_API qd_real sqrt(const qd_real &a) {
 
   if (a.is_negative()) {
     qd_real::error("(qd_real::sqrt): Negative argument.");
+    return qd_real::_nan;
+  }
+
+  /* Newton doubles the number of correct digits at every step, so each
+     step is run at the cheapest precision that can hold its result:
+     ~16 -> ~32 digits in dd_real, ~32 -> ~63 digits in td_real, and the
+     final step in qd_real.  Every step is a pair of branch-free FMAs, so
+     neither  h * r^2  nor the following multiply-and-add is renormalized
+     on its own.  The 0.0.2 version ran three full quad-double
+     iterations built from separate multiplies and adds. */
+  dd_real ad(a[0], a[1]);
+  dd_real hd = mul_pwr2(ad, 0.5);
+  dd_real rd = (1.0 / std::sqrt(a[0]));
+  rd = dw_fma(dw_fma(-hd, sqr(rd), dd_real(0.5)), rd, rd);
+
+  td_real at(a[0], a[1], a[2]);
+  td_real ht = mul_pwr2(at, 0.5);
+  td_real rt(rd);
+  rt = tw_fma(tw_fma(-ht, sqr(rt), td_real(0.5)), rt, rt);
+
+  qd_real h = mul_pwr2(a, 0.5);
+  qd_real r = to_qd_real(rt);
+  r = qw_fma(qw_fma(-h, sqr(r), qd_real(0.5)), r, r);
+
+  r *= a;
+  return r;
+}
+
+/* Reference (pre-0.0.3) square root, kept so that the benchmark can
+   measure what the branch-free FMA buys us. */
+QD_API qd_real sqrt_legacy(const qd_real &a) {
+  if (a.is_zero())
+    return 0.0;
+
+  if (a.is_negative()) {
+    qd_real::error("(qd_real::sqrt_legacy): Negative argument.");
     return qd_real::_nan;
   }
 

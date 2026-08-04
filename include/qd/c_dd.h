@@ -45,6 +45,10 @@ void c_dd_copy(const double *a, double *b);
 void c_dd_copy_d(double a, double *b);
 
 void c_dd_sqrt(const double *a, double *b);
+
+/* branch-free double-word fused multiply-add:  d = a * b + c */
+void c_dd_fma(const double *a, const double *b, const double *c, double *d);
+void c_dd_fma_dd_d(const double *a, double b, const double *c, double *d);
 void c_dd_sqr(const double *a, double *b);
 
 void c_dd_abs(const double *a, double *b);

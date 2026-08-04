@@ -82,6 +82,17 @@ void c_qd_sub_d_qd(double a, const double *b, double *c) {
 
 
 /* mul */
+void c_qd_fma(const double *a, const double *b, const double *c, double *d) {
+  qd_real dd;
+  dd = qw_fma(qd_real(a), qd_real(b), qd_real(c));
+  TO_DOUBLE_PTR(dd, d);
+}
+void c_qd_fma_qd_d(const double *a, double b, const double *c, double *d) {
+  qd_real dd;
+  dd = qw_fma(qd_real(a), b, qd_real(c));
+  TO_DOUBLE_PTR(dd, d);
+}
+
 void c_qd_mul(const double *a, const double *b, double *c) {
   qd_real cc;
   cc = qd_real(a) * qd_real(b);

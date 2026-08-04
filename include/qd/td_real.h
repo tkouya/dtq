@@ -87,6 +87,8 @@ struct QD_API td_real {
   static td_real accurate_div(const td_real &a, const dd_real &b);
   static td_real sloppy_div(const td_real &a, const td_real &b);
   static td_real accurate_div(const td_real &a, const td_real &b);
+  /* Division built on the branch-free triple-word FMA (tw_fma). */
+  static td_real fma_div(const td_real &a, const td_real &b);
 
   td_real &operator/=(double a);
   td_real &operator/=(const dd_real &a);
@@ -150,6 +152,21 @@ QD_API inline bool isinf(const td_real &a) { return a.isinf(); }
 
 /* Computes  td * d  where d is known to be a power of 2. */
 QD_API td_real mul_pwr2(const td_real &td, double d);
+
+/*********** Branch-free triple-word FMA (T. Kouya) ************/
+/* tw_fma(a, b, c) computes  a * b + c  as a single fused triple-word
+   operation: the terms of the exact product a*b and the words of c are
+   accumulated in one straight-line network, so a*b is never renormalized
+   on its own.  Cheaper and more accurate than  a * b + c. */
+QD_API td_real tw_fma(const td_real &a, const td_real &b, const td_real &c);
+QD_API td_real tw_fma(const td_real &a, double b, const td_real &c);
+
+/* Generic spelling; same operation. */
+QD_API td_real fma(const td_real &a, const td_real &b, const td_real &c);
+QD_API td_real fma(const td_real &a, double b, const td_real &c);
+
+/* Reference (pre-0.0.3) implementation, kept for benchmarking. */
+QD_API td_real sqrt_legacy(const td_real &a);
 
 QD_API td_real operator+(const td_real &a, const td_real &b);
 QD_API td_real operator+(const dd_real &a, const td_real &b);

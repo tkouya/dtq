@@ -89,6 +89,36 @@ qs_real sqrt(const qs_real &a) {
     qs_real::error("sqrt: Negative argument.");
     return qs_real::_nan;
   }
+  /* Newton iteration  r' = r + (0.5 - h*r^2)*r  for 1/sqrt(a), h = a/2.
+     The first refinement runs in ds_real, the remaining two in qs_real,
+     each as a pair of branch-free qw_fma calls.  This replaces the 0.0.2
+     implementation, which promoted the argument to qd_real and ran three
+     quad-double iterations. */
+  ds_real ad(a[0], a[1]);
+  ds_real hd = mul_pwr2(ad, 0.5f);
+  ds_real rd = 1.0f / std::sqrt(a[0]);
+  rd = dw_fma(dw_fma(-hd, sqr(rd), ds_real(0.5f)), rd, rd);
+
+  ts_real at(a[0], a[1], a[2]);
+  ts_real ht = mul_pwr2(at, 0.5f);
+  ts_real rt(rd);
+  rt = tw_fma(tw_fma(-ht, sqr(rt), ts_real(0.5f)), rt, rt);
+
+  qs_real h = mul_pwr2(a, 0.5f);
+  qs_real r(rt);
+  r = qw_fma(qw_fma(-h, sqr(r), qs_real(0.5f)), r, r);
+
+  r *= a;
+  return r;
+}
+
+/* Reference (0.0.2) square root, kept for benchmarking. */
+qs_real sqrt_legacy(const qs_real &a) {
+  if (a.is_zero()) return qs_real(0.0f);
+  if (a.is_negative()) {
+    qs_real::error("sqrt_legacy: Negative argument.");
+    return qs_real::_nan;
+  }
   return qs_from_qd(sqrt(qd_from_qs(a)));
 }
 

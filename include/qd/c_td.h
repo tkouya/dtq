@@ -30,6 +30,10 @@ void c_td_sub_d_td(double a, const double *b, double *c);
 
 /* mul */
 void c_td_mul(const double *a, const double *b, double *c);
+
+/* branch-free triple-word fused multiply-add:  d = a * b + c */
+void c_td_fma(const double *a, const double *b, const double *c, double *d);
+void c_td_fma_td_d(const double *a, double b, const double *c, double *d);
 void c_td_mul_td_dd(const double *a, const double *b, double *c);
 void c_td_mul_dd_td(const double *a, const double *b, double *c);
 void c_td_mul_td_d(const double *a, double b, double *c);

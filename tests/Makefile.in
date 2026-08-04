@@ -88,9 +88,12 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-TESTS = qd_test$(EXEEXT) pslq_test$(EXEEXT) c_test$(EXEEXT)
-check_PROGRAMS = qd_test$(EXEEXT) pslq_test$(EXEEXT) c_test$(EXEEXT)
-EXTRA_PROGRAMS = qd_timer$(EXEEXT) quadt_test$(EXEEXT) huge$(EXEEXT)
+TESTS = qd_test$(EXEEXT) pslq_test$(EXEEXT) c_test$(EXEEXT) \
+	fma_test$(EXEEXT)
+check_PROGRAMS = qd_test$(EXEEXT) pslq_test$(EXEEXT) c_test$(EXEEXT) \
+	fma_test$(EXEEXT)
+EXTRA_PROGRAMS = qd_timer$(EXEEXT) quadt_test$(EXEEXT) huge$(EXEEXT) \
+	fma_bench$(EXEEXT)
 subdir = tests
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/ax_cxx_clock_gettime.m4 \
@@ -115,14 +118,22 @@ am_c_test_OBJECTS = c_test.$(OBJEXT)
 c_test_OBJECTS = $(am_c_test_OBJECTS)
 c_test_LDADD = $(LDADD)
 c_test_DEPENDENCIES = $(top_builddir)/src/libqd.la
-am_huge_OBJECTS = huge.$(OBJEXT)
-huge_OBJECTS = $(am_huge_OBJECTS)
-huge_LDADD = $(LDADD)
-huge_DEPENDENCIES = $(top_builddir)/src/libqd.la
+am_fma_bench_OBJECTS = fma_bench.$(OBJEXT) tictoc.$(OBJEXT)
+fma_bench_OBJECTS = $(am_fma_bench_OBJECTS)
+fma_bench_LDADD = $(LDADD)
+fma_bench_DEPENDENCIES = $(top_builddir)/src/libqd.la
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
+am_fma_test_OBJECTS = fma_test.$(OBJEXT)
+fma_test_OBJECTS = $(am_fma_test_OBJECTS)
+fma_test_LDADD = $(LDADD)
+fma_test_DEPENDENCIES = $(top_builddir)/src/libqd.la
+am_huge_OBJECTS = huge.$(OBJEXT)
+huge_OBJECTS = $(am_huge_OBJECTS)
+huge_LDADD = $(LDADD)
+huge_DEPENDENCIES = $(top_builddir)/src/libqd.la
 am_pslq_test_OBJECTS = pslq_test.$(OBJEXT) tictoc.$(OBJEXT)
 pslq_test_OBJECTS = $(am_pslq_test_OBJECTS)
 pslq_test_LDADD = $(LDADD)
@@ -154,7 +165,8 @@ am__v_at_1 =
 DEFAULT_INCLUDES = 
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__maybe_remake_depfiles = depfiles
-am__depfiles_remade = ./$(DEPDIR)/c_test.Po ./$(DEPDIR)/huge.Po \
+am__depfiles_remade = ./$(DEPDIR)/c_test.Po ./$(DEPDIR)/fma_bench.Po \
+	./$(DEPDIR)/fma_test.Po ./$(DEPDIR)/huge.Po \
 	./$(DEPDIR)/pslq_test.Po ./$(DEPDIR)/qd_test.Po \
 	./$(DEPDIR)/qd_timer.Po ./$(DEPDIR)/quadt_test.Po \
 	./$(DEPDIR)/tictoc.Po
@@ -195,9 +207,11 @@ AM_V_CXXLD = $(am__v_CXXLD_@AM_V@)
 am__v_CXXLD_ = $(am__v_CXXLD_@AM_DEFAULT_V@)
 am__v_CXXLD_0 = @echo "  CXXLD   " $@;
 am__v_CXXLD_1 = 
-SOURCES = $(c_test_SOURCES) $(huge_SOURCES) $(pslq_test_SOURCES) \
-	$(qd_test_SOURCES) $(qd_timer_SOURCES) $(quadt_test_SOURCES)
-DIST_SOURCES = $(c_test_SOURCES) $(huge_SOURCES) $(pslq_test_SOURCES) \
+SOURCES = $(c_test_SOURCES) $(fma_bench_SOURCES) $(fma_test_SOURCES) \
+	$(huge_SOURCES) $(pslq_test_SOURCES) $(qd_test_SOURCES) \
+	$(qd_timer_SOURCES) $(quadt_test_SOURCES)
+DIST_SOURCES = $(c_test_SOURCES) $(fma_bench_SOURCES) \
+	$(fma_test_SOURCES) $(huge_SOURCES) $(pslq_test_SOURCES) \
 	$(qd_test_SOURCES) $(qd_timer_SOURCES) $(quadt_test_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
@@ -560,12 +574,14 @@ top_srcdir = @top_srcdir@
 LDADD = $(top_builddir)/src/libqd.la
 AM_CPPFLAGS = -I$(top_builddir) -I$(top_builddir)/include -I$(top_srcdir)/include
 dist_noinst_DATA = coeff.dat
-CLEANFILES = qd_timer quadt_test huge
+CLEANFILES = qd_timer quadt_test huge fma_bench
 qd_test_SOURCES = qd_test.cpp
 pslq_test_SOURCES = pslq.h pslq_test.cpp tictoc.cpp tictoc.h
 qd_timer_SOURCES = qd_timer.cpp tictoc.cpp tictoc.h
 quadt_test_SOURCES = quadt_test.cpp tictoc.cpp quadt.h tictoc.h
 huge_SOURCES = huge.cpp
+fma_test_SOURCES = fma_test.cpp
+fma_bench_SOURCES = fma_bench.cpp tictoc.cpp tictoc.h
 c_test_SOURCES = c_test.c
 c_test_LINK = $(CXXLINK)
 all: all-am
@@ -615,6 +631,14 @@ c_test$(EXEEXT): $(c_test_OBJECTS) $(c_test_DEPENDENCIES) $(EXTRA_c_test_DEPENDE
 	@rm -f c_test$(EXEEXT)
 	$(AM_V_GEN)$(c_test_LINK) $(c_test_OBJECTS) $(c_test_LDADD) $(LIBS)
 
+fma_bench$(EXEEXT): $(fma_bench_OBJECTS) $(fma_bench_DEPENDENCIES) $(EXTRA_fma_bench_DEPENDENCIES) 
+	@rm -f fma_bench$(EXEEXT)
+	$(AM_V_CXXLD)$(CXXLINK) $(fma_bench_OBJECTS) $(fma_bench_LDADD) $(LIBS)
+
+fma_test$(EXEEXT): $(fma_test_OBJECTS) $(fma_test_DEPENDENCIES) $(EXTRA_fma_test_DEPENDENCIES) 
+	@rm -f fma_test$(EXEEXT)
+	$(AM_V_CXXLD)$(CXXLINK) $(fma_test_OBJECTS) $(fma_test_LDADD) $(LIBS)
+
 huge$(EXEEXT): $(huge_OBJECTS) $(huge_DEPENDENCIES) $(EXTRA_huge_DEPENDENCIES) 
 	@rm -f huge$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(huge_OBJECTS) $(huge_LDADD) $(LIBS)
@@ -642,6 +666,8 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c_test.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fma_bench.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fma_test.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/huge.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pslq_test.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/qd_test.Po@am__quote@ # am--include-marker
@@ -917,6 +943,13 @@ c_test.log: c_test$(EXEEXT)
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
+fma_test.log: fma_test$(EXEEXT)
+	@p='fma_test$(EXEEXT)'; \
+	b='fma_test'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
 .test.log:
 	@p='$<'; \
 	$(am__set_b); \
@@ -1011,6 +1044,8 @@ clean-am: clean-checkPROGRAMS clean-generic clean-libtool \
 
 distclean: distclean-am
 		-rm -f ./$(DEPDIR)/c_test.Po
+	-rm -f ./$(DEPDIR)/fma_bench.Po
+	-rm -f ./$(DEPDIR)/fma_test.Po
 	-rm -f ./$(DEPDIR)/huge.Po
 	-rm -f ./$(DEPDIR)/pslq_test.Po
 	-rm -f ./$(DEPDIR)/qd_test.Po
@@ -1063,6 +1098,8 @@ installcheck-am:
 
 maintainer-clean: maintainer-clean-am
 		-rm -f ./$(DEPDIR)/c_test.Po
+	-rm -f ./$(DEPDIR)/fma_bench.Po
+	-rm -f ./$(DEPDIR)/fma_test.Po
 	-rm -f ./$(DEPDIR)/huge.Po
 	-rm -f ./$(DEPDIR)/pslq_test.Po
 	-rm -f ./$(DEPDIR)/qd_test.Po
@@ -1109,9 +1146,12 @@ uninstall-am:
 time: qd_timer$(EXEEXT)
 	./qd_timer$(EXEEXT)
 
+bench: fma_bench$(EXEEXT)
+	./fma_bench$(EXEEXT)
+
 demo: $(check_PROGRAMS) $(EXTRA_PROGRAMS)
 
-.PHONY: time demo
+.PHONY: time bench demo
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

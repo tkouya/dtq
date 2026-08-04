@@ -3,7 +3,7 @@
 CPU 上で多倍長浮動小数点演算を行うライブラリ `dtq`（QD 2.13 派生）を、
 自分のプロジェクトから利用するときの簡易リファレンスです。
 
-対象バージョン: **dtq-0.0.2**
+対象バージョン: **dtq-0.0.3**
 
 GPU（CUDA）版は別パッケージ `gdtq` を参照してください。
 
@@ -41,7 +41,7 @@ double を使う系統と float を使う系統の 2 系統があります。
 ```sh
 ./configure
 make
-make check         # qd_test, c_test, pslq_test 実行
+make check         # qd_test, c_test, pslq_test, fma_test 実行
 sudo make install
 ```
 
@@ -126,12 +126,39 @@ g++ -O2 -ffp-contract=off -I/usr/local/include \
 | 算術 | `+ - * /`、`+= -= *= /=`（`X_real op X_real`、`X_real op double`、`double op X_real`） |
 | 比較 | `== != < <= > >=` |
 | 単項 | `-a`、`abs(a)`、`sqr(a)`、`sqrt(a)`、`nroot(a, n)`、`npwr(a, n)` |
+| 積和（FMA） | `fma(a, b, c)`（= `a*b + c`）、型別の名前は `dw_fma`（dd/ds）、`tw_fma`（td/ts）、`qw_fma`（qd/qs） |
 | 丸め | `nint(a)`、`floor(a)`、`ceil(a)`、`aint(a)` |
 | 指数・対数 | `exp(a)`、`log(a)`、`log10(a)` |
 | 三角関数 | `sin(a)`、`cos(a)`、`tan(a)`、`asin(a)`、`acos(a)`、`atan(a)`、`atan2(y, x)`、`sincos(a, s, c)` |
 | 双曲線 | `sinh(a)`、`cosh(a)`、`tanh(a)`、`asinh(a)`、`acosh(a)`、`atanh(a)` |
 | 入出力 | `std::cout << a`、`std::cin >> a`、`a.to_string(precision)`、`X_real("123.456")` |
 | 述語 | `a.is_zero()`、`a.is_one()`、`a.is_positive()`、`a.is_negative()`、`a.isnan()`、`a.isinf()`、`a.isfinite()` |
+
+### 3.3b 分岐なし積和演算（fused multiply-add, 0.0.3 で追加）
+
+`a * b + c` を 1 個の融合演算として計算するルーチンを全精度クラスに
+用意しています。
+
+```cpp
+dd_real z = dw_fma(a, b, c);   // double-word （dd_real, ds_real）
+td_real z = tw_fma(a, b, c);   // triple-word （td_real, ts_real）
+qd_real z = qw_fma(a, b, c);   // quad-word   （qd_real, qs_real）
+
+qd_real z = fma(a, b, c);      // 総称名。6 型すべてで使えます
+qd_real z = qw_fma(a, 2.5, c); // 乗数は素の double / float でも可
+```
+
+積 `a*b` の各項と加数 `c` の各語を 1 本の直線的（分岐なし）な加算
+ネットワークにまとめて累算するため、`a*b` を単独で正規化しません。
+`a * b + c` と書くより演算数が少なく、精度が落ちることもありません。
+
+除算と平方根はこのルーチンの上に構築されています。`operator/` は
+`T::fma_div` を呼びます（`-DQD_NO_FMA_DIV` を付けると 0.0.2 の
+`sloppy_div` / `accurate_div` に戻ります）。`sqrt` は融合積和による
+Newton 反復を使います。0.0.2 の実装は `sqrt_legacy(a)` として残して
+あります。
+
+手元の環境での新旧比較は `tests/` で `make bench` を実行してください。
 
 ### 3.4 主な定数（dd/td/qd 共通の命名）
 
@@ -200,7 +227,7 @@ int main(void) {
 c_<prec>_<op>[ _<argtypes>]
 ```
 
-`<prec>` は `dd` / `td` / `qd`、`<op>` は `add`、`sub`、`mul`、`div`、`sqr`、`sqrt`、
+`<prec>` は `dd` / `td` / `qd`、`<op>` は `add`、`sub`、`mul`、`div`、`sqr`、`sqrt`、`fma`、
 `exp`、`log`、`sin`、`cos`、`tan`、`pi`、`copy`、`comp`（比較）など。
 代入演算は `c_<prec>_self<op>` 形式（例: `c_qd_selfmul_d(2.0, p)` で `p *= 2.0`）。
 
@@ -227,6 +254,8 @@ C ラッパの実装は **C++ で書かれている** ため、リンクには `
 | `tests/qd_test` | dd/td/qd の数学関数の精度確認 |
 | `tests/c_test` | C ラッパの動作確認（Salamin–Brent で π を計算） |
 | `tests/pslq_test` | PSLQ 整数関係探索アルゴリズム |
+| `tests/fma_test` | `dw_fma`/`tw_fma`/`qw_fma` と、それを使う除算・平方根の精度確認（`make check` で実行） |
+| `tests/fma_bench` | 上記の新旧速度比較（`make bench`） |
 | `tests/qd_timer` | 簡易ベンチマーク（`make demo` で構築） |
 | `tests/quadt_test` | tanh-sinh 数値積分（`make demo`） |
 | `tests/huge` | 大きな値の出力デモ（`make demo`） |

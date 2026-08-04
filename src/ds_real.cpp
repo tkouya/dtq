@@ -89,7 +89,27 @@ ds_real sqrt(const ds_real &a) {
     ds_real::error("sqrt: Negative argument.");
     return ds_real::_nan;
   }
-  /* Karp's trick. */
+  /* Karp's trick.  The residual a - ax*ax is obtained from the error-free
+     product two_sqr(ax) (the same building block dw_fma rests on): the
+     subtraction a.x[0] - p is exact by Sterbenz, so no double-single
+     subtraction is needed here. */
+  float x = 1.0f / std::sqrt(a.x[0]);
+  float ax = a.x[0] * x;
+
+  float e;
+  float p = qs::two_sqr(ax, e);
+  float d = ((a.x[0] - p) - e) + a.x[1];
+
+  return ds_real::add(ax, d * (x * 0.5f));
+}
+
+/* Reference (pre-0.0.3) square root, kept for benchmarking. */
+ds_real sqrt_legacy(const ds_real &a) {
+  if (a.is_zero()) return 0.0f;
+  if (a.is_negative()) {
+    ds_real::error("sqrt_legacy: Negative argument.");
+    return ds_real::_nan;
+  }
   float x = 1.0f / std::sqrt(a.x[0]);
   float ax = a.x[0] * x;
   return ds_real::add(ax, (a - ds_real::sqr(ax)).x[0] * (x * 0.5f));

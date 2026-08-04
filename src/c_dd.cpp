@@ -56,6 +56,19 @@ void c_dd_sub_d_dd(double a, const double *b, double *c) {
 }
 
 
+/* fma (branch-free double-word fused multiply-add) */
+void c_dd_fma(const double *a, const double *b, const double *c, double *d) {
+  dd_real dd;
+  dd = dw_fma(dd_real(a), dd_real(b), dd_real(c));
+  TO_DOUBLE_PTR(dd, d);
+}
+void c_dd_fma_dd_d(const double *a, double b, const double *c, double *d) {
+  dd_real dd;
+  dd = dw_fma(dd_real(a), b, dd_real(c));
+  TO_DOUBLE_PTR(dd, d);
+}
+
+
 /* mul */
 void c_dd_mul(const double *a, const double *b, double *c) {
   dd_real cc;

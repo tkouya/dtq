@@ -88,6 +88,8 @@ struct QD_API qs_real {
 
   static qs_real sloppy_div(const qs_real &a, const qs_real &b);
   static qs_real accurate_div(const qs_real &a, const qs_real &b);
+  /* Division built on the branch-free quad-word FMA (qw_fma). */
+  static qs_real fma_div(const qs_real &a, const qs_real &b);
 
   qs_real &operator/=(float a);
   qs_real &operator/=(const ds_real &a);
@@ -138,6 +140,19 @@ QD_API inline bool isfinite(const qs_real &a) { return a.isfinite(); }
 QD_API inline bool isinf(const qs_real &a) { return a.isinf(); }
 
 QD_API qs_real mul_pwr2(const qs_real &a, float b);
+
+/*********** Branch-free quad-word FMA (T. Kouya) ************/
+/* qw_fma(a, b, c) computes  a * b + c  as a single fused quad-word
+   operation, without renormalizing a * b on its own. */
+QD_API qs_real qw_fma(const qs_real &a, const qs_real &b, const qs_real &c);
+QD_API qs_real qw_fma(const qs_real &a, float b, const qs_real &c);
+
+/* Generic spelling; same operation. */
+QD_API qs_real fma(const qs_real &a, const qs_real &b, const qs_real &c);
+QD_API qs_real fma(const qs_real &a, float b, const qs_real &c);
+
+/* Reference (pre-0.0.3) implementation, kept for benchmarking. */
+QD_API qs_real sqrt_legacy(const qs_real &a);
 
 QD_API qs_real operator+(const qs_real &a, const qs_real &b);
 QD_API qs_real operator+(const qs_real &a, float b);
@@ -376,6 +391,109 @@ inline qs_real ldexp(const qs_real &a, int n) {
                  std::ldexp(a[2], n), std::ldexp(a[3], n));
 }
 
+// 2026-08-04 T.Kouya
+// Branch free algorithm: quad-word FMA,  z = a * b + c  (float limbs).
+// Same network as the qd_real version; see include/qd/qd_inline.h.
+inline qs_real qw_fma(const qs_real &a, const qs_real &b, const qs_real &c) {
+  float a0, b0, c0, d0, e0, f0, g0, h0, i0, j0, k0, l0, m0;
+  float a1, b1, c1, d1, e1, f1, g1;
+  float a2, b2, c2, d2, e2, f2, g2, h2, i2, j2, k2;
+  float a3, b3, c3, d3, e3;
+  float a4, b4, c4, d4;
+  float a5, b5, c5, d5;
+  float a6, b6, c6, d6;
+  float a7, b7;
+
+  /* --- products --- */
+  a0 = qs::two_prod(a[0], b[0], b0);        /* level 0 / level 1 */
+  c0 = qs::two_prod(a[0], b[1], g0);        /* level 1 / level 2 */
+  d0 = qs::two_prod(a[1], b[0], h0);        /* level 1 / level 2 */
+  e0 = qs::two_prod(a[0], b[2], i0);        /* level 2 / level 3 */
+  f0 = qs::two_prod(a[1], b[1], j0);        /* level 2 / level 3 */
+  k0 = qs::two_prod(a[2], b[0], l0);        /* level 2 / level 3 */
+  m0 = (a[0] * b[3] + a[3] * b[0])          /* level 3 */
+     + (a[1] * b[2] + a[2] * b[1]);
+
+  /* --- level 0 --- */
+  a1 = qs::two_sum(a0, c[0], b1);
+
+  /* --- level 1 --- */
+  c1 = qs::two_sum(c0, d0, d1);
+  e1 = qs::two_sum(b0, c[1], f1);
+  a2 = qs::two_sum(c1, e1, b2);
+  g1 = qs::two_sum(a2, b1, c2);
+
+  /* --- level 2 --- */
+  d2 = qs::two_sum(g0, h0, e2);
+  f2 = qs::two_sum(e0, f0, g2);
+  h2 = qs::two_sum(k0, c[2], i2);
+  j2 = qs::two_sum(d1, f1, k2);
+  a3 = qs::two_sum(b2, c2, b3);
+  c3 = qs::two_sum(d2, f2, d3);
+  e3 = qs::two_sum(h2, j2, a4);
+  b4 = qs::two_sum(c3, e3, c4);
+  a5 = qs::two_sum(b4, a3, d4);
+
+  /* --- level 3 --- */
+  b5 = (((i0 + j0) + (l0 + m0)) + c[3])
+     + (((e2 + g2) + (i2 + k2)) + ((b3 + d3) + (a4 + c4) + d4));
+
+  /* --- branch-free renormalization --- */
+  c5 = qs::quick_two_sum(a1, g1, d5);
+  a6 = qs::quick_two_sum(a5, b5, b6);
+  c6 = qs::quick_two_sum(d5, a6, d6);
+  a7 = qs::quick_two_sum(d6, b6, b7);
+
+  return qs_real(c5, c6, a7, b7);
+}
+
+/* quad-word FMA with a plain float multiplier:  a * b + c. */
+inline qs_real qw_fma(const qs_real &a, float b, const qs_real &c) {
+  float a0, b0, c0, d0, e0, f0, g0;
+  float a1, b1, c1, d1, e1, f1, g1;
+  float a2, b2, c2, d2, e2, f2;
+  float a3, b3, c3;
+  float a4, b4, c4;
+  float a5, b5, c5, d5;
+  float a6, b6;
+  float a7, b7;
+
+  a0 = qs::two_prod(a[0], b, b0);
+  c0 = qs::two_prod(a[1], b, d0);
+  e0 = qs::two_prod(a[2], b, f0);
+  g0 = a[3] * b;
+
+  a1 = qs::two_sum(a0, c[0], b1);
+
+  c1 = qs::two_sum(b0, c0, d1);
+  e1 = qs::two_sum(c[1], b1, f1);
+  g1 = qs::two_sum(c1, e1, a2);
+
+  b2 = qs::two_sum(d0, e0, c2);
+  d2 = qs::two_sum(c[2], d1, e2);
+  f2 = qs::two_sum(f1, a2, a3);
+  b3 = qs::two_sum(b2, d2, c3);
+  a4 = qs::two_sum(b3, f2, b4);
+
+  c4 = ((f0 + g0) + c[3])
+     + (((c2 + e2) + (a3 + c3)) + b4);
+
+  a5 = qs::quick_two_sum(a1, g1, b5);
+  c5 = qs::quick_two_sum(a4, c4, d5);
+  a6 = qs::quick_two_sum(b5, c5, b6);
+  a7 = qs::quick_two_sum(b6, d5, b7);
+
+  return qs_real(a5, a6, a7, b7);
+}
+
+inline qs_real fma(const qs_real &a, const qs_real &b, const qs_real &c) {
+  return qw_fma(a, b, c);
+}
+
+inline qs_real fma(const qs_real &a, float b, const qs_real &c) {
+  return qw_fma(a, b, c);
+}
+
 inline qs_real qs_real::sloppy_div(const qs_real &a, const qs_real &b) {
   float q0, q1, q2, q3;
   qs_real r;
@@ -404,8 +522,31 @@ inline qs_real qs_real::accurate_div(const qs_real &a, const qs_real &b) {
   qs::renorm5(q0, q1, q2, q3, q4);
   return qs_real(q0, q1, q2, q3);
 }
+/* Long division driven by the branch-free quad-word FMA.  Same correction
+   sequence as sloppy_div (the qs_real default), but each residual
+   r <- r - q * b  is one fused qw_fma. */
+inline qs_real qs_real::fma_div(const qs_real &a, const qs_real &b) {
+  float q0, q1, q2, q3;
+  qs_real r;
+
+  q0 = a[0] / b[0];
+  r = qw_fma(b, -q0, a);
+  q1 = r[0] / b[0];
+  r = qw_fma(b, -q1, r);
+  q2 = r[0] / b[0];
+  r = qw_fma(b, -q2, r);
+  q3 = r[0] / b[0];
+
+  qs::renorm4(q0, q1, q2, q3);
+  return qs_real(q0, q1, q2, q3);
+}
+
 inline qs_real operator/(const qs_real &a, const qs_real &b) {
+#ifdef QD_NO_FMA_DIV
   return qs_real::sloppy_div(a, b);
+#else
+  return qs_real::fma_div(a, b);
+#endif
 }
 inline qs_real operator/(const qs_real &a, float b) { return a / qs_real(b); }
 inline qs_real operator/(float a, const qs_real &b) { return qs_real(a) / b; }

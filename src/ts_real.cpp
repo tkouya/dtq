@@ -89,7 +89,33 @@ ts_real sqrt(const ts_real &a) {
     ts_real::error("sqrt: Negative argument.");
     return ts_real::_nan;
   }
-  /* Two Karp/Newton refinement steps in float -> ds -> ts. */
+  /* Newton iteration  r' = r + (0.5 - h*r^2)*r  for 1/sqrt(a), h = a/2.
+     The first refinement runs in ds_real (~14 digits is already plenty
+     for the second one to reach the full ~21 digits of ts_real), and each
+     step is a pair of branch-free tw_fma calls.  This replaces the 0.0.2
+     implementation, which promoted the argument to td_real and ran three
+     triple-double iterations. */
+  ds_real ad(a[0], a[1]);
+  ds_real hd = mul_pwr2(ad, 0.5f);
+  ds_real rd = 1.0f / std::sqrt(a[0]);
+  rd = dw_fma(dw_fma(-hd, sqr(rd), ds_real(0.5f)), rd, rd);
+
+  ts_real h = mul_pwr2(a, 0.5f);
+  ts_real r(rd);
+
+  r = tw_fma(tw_fma(-h, sqr(r), ts_real(0.5f)), r, r);
+
+  r *= a;
+  return r;
+}
+
+/* Reference (0.0.2) square root, kept for benchmarking. */
+ts_real sqrt_legacy(const ts_real &a) {
+  if (a.is_zero()) return 0.0f;
+  if (a.is_negative()) {
+    ts_real::error("sqrt_legacy: Negative argument.");
+    return ts_real::_nan;
+  }
   return ts_from_td(sqrt(td_from_ts(a)));
 }
 

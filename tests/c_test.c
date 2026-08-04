@@ -199,12 +199,69 @@ static int test_1_qd(void) {
   return 0;
 }
 
+/* Test 2.  The C bindings of the branch-free multi-word fused
+   multiply-add must agree with a separate multiply and add to within a
+   few units in the last place.  */
+static int test_2_fma(void) {
+  double a[4], b[4], c[4], f[4], g[4], t[4];
+  int i, bad = 0;
+  double err, tol;
+
+  puts("Test 2.  (branch-free fused multiply-add: c_dd_fma / c_td_fma / c_qd_fma)");
+
+  for (i = 0; i < 4; i++) { a[i] = 0.0; b[i] = 0.0; c[i] = 0.0; }
+
+  /* dd */
+  c_dd_copy_d(3.0, a);  c_dd_sqrt(a, a);       /* a = sqrt(3)  */
+  c_dd_copy_d(5.0, b);  c_dd_sqrt(b, b);       /* b = sqrt(5)  */
+  c_dd_pi(c);
+  c_dd_fma(a, b, c, f);
+  c_dd_mul(a, b, t);  c_dd_add(t, c, g);
+  c_dd_sub(f, g, t);  c_dd_abs(t, t);
+  err = t[0] / f[0];
+  tol = 8.0 * ldexp(1.0, -104);
+  printf("  c_dd_fma vs mul+add: %.3e  (tol %.3e)  %s\n",
+         err, tol, (err <= tol) ? "ok" : "FAILED");
+  if (err > tol) bad++;
+
+  /* td */
+  c_td_copy_d(3.0, a);  c_td_sqrt(a, a);
+  c_td_copy_d(5.0, b);  c_td_sqrt(b, b);
+  c_td_pi(c);
+  c_td_fma(a, b, c, f);
+  c_td_mul(a, b, t);  c_td_add(t, c, g);
+  c_td_sub(f, g, t);  c_td_abs(t, t);
+  err = t[0] / f[0];
+  tol = 8.0 * ldexp(1.0, -156);
+  printf("  c_td_fma vs mul+add: %.3e  (tol %.3e)  %s\n",
+         err, tol, (err <= tol) ? "ok" : "FAILED");
+  if (err > tol) bad++;
+
+  /* qd */
+  c_qd_copy_d(3.0, a);  c_qd_sqrt(a, a);
+  c_qd_copy_d(5.0, b);  c_qd_sqrt(b, b);
+  c_qd_pi(c);
+  c_qd_fma(a, b, c, f);
+  c_qd_mul(a, b, t);  c_qd_add(t, c, g);
+  c_qd_sub(f, g, t);  c_qd_abs(t, t);
+  err = t[0] / f[0];
+  tol = 8.0 * ldexp(1.0, -209);
+  printf("  c_qd_fma vs mul+add: %.3e  (tol %.3e)  %s\n",
+         err, tol, (err <= tol) ? "ok" : "FAILED");
+  if (err > tol) bad++;
+
+  return bad;
+}
+
 int main(void) {
+  int bad;
   fpu_fix_start(NULL);
   test_1_dd();
   putchar('\n');
   test_1_td();
   putchar('\n');
   test_1_qd();
-  return 0;
+  putchar('\n');
+  bad = test_2_fma();
+  return (bad == 0) ? 0 : 1;
 }

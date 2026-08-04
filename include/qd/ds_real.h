@@ -101,6 +101,8 @@ struct QD_API ds_real {
   static ds_real sloppy_add(const ds_real &a, const ds_real &b);
   static ds_real sloppy_div(const ds_real &a, const ds_real &b);
   static ds_real accurate_div(const ds_real &a, const ds_real &b);
+  /* Division built on the branch-free double-word FMA (dw_fma). */
+  static ds_real fma_div(const ds_real &a, const ds_real &b);
 
   ds_real &operator+=(float a);
   ds_real &operator+=(const ds_real &a);
@@ -154,6 +156,20 @@ QD_API inline bool isfinite(const ds_real &a) { return a.isfinite(); }
 QD_API inline bool isinf(const ds_real &a) { return a.isinf(); }
 
 QD_API ds_real mul_pwr2(const ds_real &a, float b);
+
+/*********** Branch-free double-word FMA (T. Kouya) ************/
+/* dw_fma(a, b, c) computes  a * b + c  as a single fused double-word
+   operation, without renormalizing a * b on its own. */
+QD_API ds_real dw_fma(const ds_real &a, const ds_real &b, const ds_real &c);
+QD_API ds_real dw_fma(const ds_real &a, float b, const ds_real &c);
+QD_API ds_real dw_fma(float a, float b, const ds_real &c);
+
+/* Generic spelling; same operation. */
+QD_API ds_real fma(const ds_real &a, const ds_real &b, const ds_real &c);
+QD_API ds_real fma(const ds_real &a, float b, const ds_real &c);
+
+/* Reference (pre-0.0.3) implementation, kept for benchmarking. */
+QD_API ds_real sqrt_legacy(const ds_real &a);
 
 QD_API ds_real operator+(const ds_real &a, float b);
 QD_API ds_real operator+(float a, const ds_real &b);
@@ -317,6 +333,59 @@ inline ds_real ldexp(const ds_real &a, int n) {
   return ds_real(std::ldexp(a.x[0], n), std::ldexp(a.x[1], n));
 }
 
+// 2026-08-04 T.Kouya
+// Branch free algorithm: double-word FMA,  z = a * b + c  (float limbs).
+inline ds_real dw_fma(const ds_real &a, const ds_real &b, const ds_real &c) {
+  float a0, b0, c0, d0;
+  float a1, b1;
+  float a2, b2;
+
+  a0 = qs::two_prod(a.x[0], b.x[0], b0);     /* level 0 / level 1 */
+  c0 = a.x[0] * b.x[1] + a.x[1] * b.x[0];    /* level 1 */
+  a1 = qs::two_sum(a0, c.x[0], b1);          /* level 0 */
+  /* b1 is added last: it is the only term that depends on c[0], so the
+     rest of the sum stays off the critical path of a chained fma. */
+  d0 = ((b0 + c0) + c.x[1]) + b1;            /* level 1 */
+  a2 = qs::quick_two_sum(a1, d0, b2);
+
+  return ds_real(a2, b2);
+}
+
+inline ds_real dw_fma(const ds_real &a, float b, const ds_real &c) {
+  float a0, b0, d0;
+  float a1, b1;
+  float a2, b2;
+
+  a0 = qs::two_prod(a.x[0], b, b0);
+  b0 += a.x[1] * b;
+  a1 = qs::two_sum(a0, c.x[0], b1);
+  d0 = (b0 + c.x[1]) + b1;
+  a2 = qs::quick_two_sum(a1, d0, b2);
+
+  return ds_real(a2, b2);
+}
+
+inline ds_real dw_fma(float a, float b, const ds_real &c) {
+  float a0, b0, d0;
+  float a1, b1;
+  float a2, b2;
+
+  a0 = qs::two_prod(a, b, b0);
+  a1 = qs::two_sum(a0, c.x[0], b1);
+  d0 = (b0 + c.x[1]) + b1;
+  a2 = qs::quick_two_sum(a1, d0, b2);
+
+  return ds_real(a2, b2);
+}
+
+inline ds_real fma(const ds_real &a, const ds_real &b, const ds_real &c) {
+  return dw_fma(a, b, c);
+}
+
+inline ds_real fma(const ds_real &a, float b, const ds_real &c) {
+  return dw_fma(a, b, c);
+}
+
 inline ds_real ds_real::sloppy_div(const ds_real &a, const ds_real &b) {
   float s1, s2;
   float q1, q2;
@@ -359,8 +428,28 @@ inline ds_real operator/(const ds_real &a, float b) {
   return r;
 }
 
+/* Long division driven by the branch-free double-word FMA.  Same
+   correction sequence as sloppy_div (the ds_real default), but the
+   residual  a - q1 * b  is one fused dw_fma instead of a multiply
+   followed by a subtraction, so one renormalization disappears. */
+inline ds_real ds_real::fma_div(const ds_real &a, const ds_real &b) {
+  float q1, q2;
+  ds_real r;
+
+  q1 = a.x[0] / b.x[0];
+  r = dw_fma(b, -q1, a);            /* r = a - q1 * b */
+  q2 = (r.x[0] + r.x[1]) / b.x[0];
+
+  q1 = qs::quick_two_sum(q1, q2, q2);
+  return ds_real(q1, q2);
+}
+
 inline ds_real operator/(const ds_real &a, const ds_real &b) {
+#ifdef QD_NO_FMA_DIV
   return ds_real::sloppy_div(a, b);
+#else
+  return ds_real::fma_div(a, b);
+#endif
 }
 
 inline ds_real operator/(float a, const ds_real &b) {

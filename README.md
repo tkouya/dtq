@@ -1,6 +1,6 @@
 # dtq: Double-double, Triple-double, and Quadruple-double precision arithmetic on CPU
 ================================================
-DTQ Version 0.0.2
+DTQ Version 0.0.3
 Copyright (C) 2026 Tomonori Kouya
 based on QD library Version 2.13
 ================================================
@@ -124,6 +124,51 @@ When building C++ code that uses this library, always pass
 -ffp-contract=off (or build through qd-config, which already does).
 
 
+
+-----------------------------------------------------------------------
+Fused multiply-add (new in 0.0.3)
+-----------------------------------------------------------------------
+Every precision class provides a branch-free multi-word fused
+multiply-add that computes  a * b + c  as a single operation:
+
+    dd_real / ds_real   dw_fma(a, b, c)     (double-word)
+    td_real / ts_real   tw_fma(a, b, c)     (triple-word)
+    qd_real / qs_real   qw_fma(a, b, c)     (quad-word)
+
+`fma(a, b, c)` is accepted as a generic spelling for all six types, and
+an overload taking the multiplier as a plain double / float is provided
+as well.  The C API adds `c_dd_fma`, `c_td_fma`, `c_qd_fma` (plus the
+`_dd_d` / `_td_d` / `_qd_d` variants).
+
+The terms of the exact product a*b and the words of c are dropped into a
+single straight-line accumulation network -- no branch, and no
+renormalization of a*b on its own -- following the branch-free algorithms
+already used by td_real::bf_add / bf_mul and qd_real::bf_add / bf_mul.
+
+Division and square root are built on these routines:
+
+  * `operator/` now calls `T::fma_div`, which runs the same correction
+    sequence as the 0.0.2 long division but forms each residual
+    r <- r - q*b with one fused operation.  The previous routines
+    (`sloppy_div`, `accurate_div`) are still available, and
+    -DQD_NO_FMA_DIV restores them as the default.
+  * `sqrt` refines 1/sqrt(a) with Newton steps written as pairs of fused
+    multiply-adds, and runs each step at the cheapest precision that can
+    hold its result (double -> dd -> td -> qd).  `sqrt_legacy` keeps the
+    0.0.2 implementation for comparison.
+
+`make bench` in tests/ (or ./fma_bench) reports old-vs-new timings.  On a
+Cortex-X925 with GCC 13 at -O2 the fused paths are, per operation:
+
+    z = a*b + c    dd x1.2   td x1.2   qd x2.3   ds x1.2  ts x2.5  qs x4.1
+    a / b          dd x2.0   td x2.7   qd x3.2   ds x1.0  ts x3.3  qs x3.8
+    sqrt(a)        dd x1.4   td x3.2   qd x2.7   ds x1.3  ts x1.9  qs x1.5
+
+Accuracy is unchanged: tests/fma_test.cpp checks every routine against an
+exact expansion-arithmetic reference and all of them stay within a few
+units in the last place.
+
+
 -----------------------------------------------------------------------
 Using the library from C
 -----------------------------------------------------------------------
@@ -153,6 +198,9 @@ Programs in tests/
   * qd_test    - sanity checks for dd_real, td_real, qd_real
   * pslq_test  - PSLQ integer-relation search at all four precisions
   * c_test     - exercises the C API for all three precisions
+  * fma_test   - accuracy tests for dw_fma / tw_fma / qw_fma and for the
+                 division and square root built on them
+  * fma_bench  - old-vs-new timings for the same ("make bench")
   * qd_timer   - micro-benchmark (built via "make demo")
   * quadt_test - tanh-sinh quadrature demo (built via "make demo")
   * huge       - large-number formatting demo (built via "make demo")

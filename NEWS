@@ -1,3 +1,23 @@
+Changes for dtq 0.0.3
+  - Added the branch-free multi-word fused multiply-add:
+      dw_fma  (double-word: dd_real, ds_real)
+      tw_fma  (triple-word: td_real, ts_real)
+      qw_fma  (quad-word  : qd_real, qs_real)
+    plus a generic fma() spelling, overloads taking the multiplier as a
+    bare double/float, and the C bindings c_dd_fma / c_td_fma / c_qd_fma.
+  - Division now uses these routines by default (T::fma_div).  The 0.0.2
+    routines sloppy_div / accurate_div are still available, and
+    -DQD_NO_FMA_DIV restores them as the default.
+  - sqrt rewritten around the fused multiply-add, with each Newton step
+    run at the cheapest precision that can hold its result.  The 0.0.2
+    implementation is kept as sqrt_legacy for comparison.
+  - New tests/fma_test.cpp (run by "make check"), which checks every
+    routine against an exact expansion-arithmetic reference, and
+    tests/fma_bench.cpp ("make bench" in tests/).
+
+Changes for dtq 0.0.2
+  - Added the float-based types ds_real, ts_real and qs_real.
+
 Changes for 2.3.17
   - updated qd_real.cpp, to fix a problem with improper treatment of
   negative arguments in nroot.

@@ -639,9 +639,40 @@ td_real td_real::accurate_div(const td_real &a, const td_real &b) {
   return td_real(q0, q1, q2);
 }
 
+/* Long division driven by the branch-free triple-word FMA.  Same
+   correction sequence as accurate_div, but each residual
+   r <- r - q * b  is a single fused tw_fma instead of a multiply followed
+   by a subtraction, which removes one renormalization per step. */
+td_real td_real::fma_div(const td_real &a, const td_real &b) {
+  double q0, q1, q2, q3;
+  td_real r;
+
+  q0 = a[0] / b[0];
+  r = tw_fma(b, -q0, a);       /* r = a - q0 * b */
+
+  q1 = r[0] / b[0];
+  r = tw_fma(b, -q1, r);
+
+  q2 = r[0] / b[0];
+  r = tw_fma(b, -q2, r);
+
+  q3 = r[0] / b[0];
+
+  renorm3(q0, q1, q2, q3);
+
+  return td_real(q0, q1, q2);
+}
+
 QD_API td_real sqrt(const td_real &a) {
-  /* Newton iteration:  x' = x + (1 - a * x^2) * x / 2,
-     converging to 1/sqrt(a).  Starts with double-precision approximation. */
+  /* Newton iteration:  r' = r + (0.5 - h * r^2) * r  with h = a/2,
+     converging to 1/sqrt(a).  Starts with a double approximation.
+
+     Two changes over the 0.0.2 version:
+       * the first refinement runs in dd_real, which is already enough to
+         carry ~32 digits, so only two triple-double steps are needed;
+       * each step is a pair of branch-free tw_fma calls, so neither
+         h * r^2 nor the following multiply-and-add is renormalized on
+         its own.                                                        */
 
   if (a.is_zero())
     return 0.0;
@@ -651,11 +682,36 @@ QD_API td_real sqrt(const td_real &a) {
     return td_real::_nan;
   }
 
+  /* ~16 digits -> ~32 digits, in double-double. */
+  dd_real ad(a[0], a[1]);
+  dd_real hd = mul_pwr2(ad, 0.5);
+  dd_real rd = (1.0 / std::sqrt(a[0]));
+  rd = dw_fma(dw_fma(-hd, sqr(rd), dd_real(0.5)), rd, rd);
+
+  td_real h = mul_pwr2(a, 0.5);
+  td_real r(rd);
+
+  /* ~32 digits -> full triple-double precision. */
+  r = tw_fma(tw_fma(-h, sqr(r), td_real(0.5)), r, r);
+
+  r *= a;
+  return r;
+}
+
+/* Reference (pre-0.0.3) square root, kept so that the benchmark can
+   measure what the branch-free FMA buys us. */
+QD_API td_real sqrt_legacy(const td_real &a) {
+  if (a.is_zero())
+    return 0.0;
+
+  if (a.is_negative()) {
+    td_real::error("(td_real::sqrt_legacy): Negative argument.");
+    return td_real::_nan;
+  }
+
   td_real r = (1.0 / std::sqrt(a[0]));
   td_real h = mul_pwr2(a, 0.5);
 
-  /* Newton's iteration approximately doubles the number of correct digits.
-     Three iterations take us from ~16 digits to >= 47 digits. */
   r += ((0.5 - h * sqr(r)) * r);
   r += ((0.5 - h * sqr(r)) * r);
   r += ((0.5 - h * sqr(r)) * r);

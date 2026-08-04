@@ -42,6 +42,10 @@ void c_qd_selfsub_d(double a, double *b);
 
 /* mul */
 void c_qd_mul(const double *a, const double *b, double *c);
+
+/* branch-free quad-word fused multiply-add:  d = a * b + c */
+void c_qd_fma(const double *a, const double *b, const double *c, double *d);
+void c_qd_fma_qd_d(const double *a, double b, const double *c, double *d);
 void c_qd_mul_dd_qd(const double *a, const double *b, double *c);
 void c_qd_mul_qd_dd(const double *a, const double *b, double *c);
 void c_qd_mul_d_qd(double a, const double *b, double *c);

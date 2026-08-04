@@ -255,6 +255,74 @@ inline dd_real &dd_real::operator*=(const dd_real &a) {
   return *this;
 }
 
+/*********** Branch-free fused multiply-add ************/
+// 2026-08-04 T.Kouya
+// Branch free algorithm: double-word FMA,  z = a * b + c.
+//
+// The three inputs are split over two "levels" of magnitude (level 0 is
+// the leading word, level 1 the trailing word).  Every term of the exact
+// product a*b and of c is dropped into the level it belongs to, the two
+// levels are accumulated with two_sum, and the result is renormalized with
+// a single quick_two_sum.  No branch, and no intermediate renormalization
+// of a*b.
+inline dd_real dw_fma(const dd_real &a, const dd_real &b, const dd_real &c) {
+  double a0, b0, c0, d0;
+  double a1, b1;
+  double a2, b2;
+
+  /* level 0 : a0 = hi(a[0]*b[0]),  level 1 : b0 = lo(a[0]*b[0]) */
+  a0 = qd::two_prod(a.x[0], b.x[0], b0);
+  /* level 1 : first-order cross terms */
+  c0 = a.x[0] * b.x[1] + a.x[1] * b.x[0];
+  /* level 0 : fold in c */
+  a1 = qd::two_sum(a0, c.x[0], b1);
+  /* level 1 : everything else.  b1 is added last on purpose: it is the
+     only term that depends on c[0], so the rest of the sum is off the
+     critical path of a chained multiply-and-add. */
+  d0 = ((b0 + c0) + c.x[1]) + b1;
+  /* renormalize */
+  a2 = qd::quick_two_sum(a1, d0, b2);
+
+  return dd_real(a2, b2);
+}
+
+/* double-word FMA with a plain double multiplier:  a * b + c. */
+inline dd_real dw_fma(const dd_real &a, double b, const dd_real &c) {
+  double a0, b0, d0;
+  double a1, b1;
+  double a2, b2;
+
+  a0 = qd::two_prod(a.x[0], b, b0);
+  b0 += a.x[1] * b;
+  a1 = qd::two_sum(a0, c.x[0], b1);
+  d0 = (b0 + c.x[1]) + b1;
+  a2 = qd::quick_two_sum(a1, d0, b2);
+
+  return dd_real(a2, b2);
+}
+
+/* double-word FMA with two plain double multiplicands:  a * b + c. */
+inline dd_real dw_fma(double a, double b, const dd_real &c) {
+  double a0, b0, d0;
+  double a1, b1;
+  double a2, b2;
+
+  a0 = qd::two_prod(a, b, b0);
+  a1 = qd::two_sum(a0, c.x[0], b1);
+  d0 = (b0 + c.x[1]) + b1;
+  a2 = qd::quick_two_sum(a1, d0, b2);
+
+  return dd_real(a2, b2);
+}
+
+inline dd_real fma(const dd_real &a, const dd_real &b, const dd_real &c) {
+  return dw_fma(a, b, c);
+}
+
+inline dd_real fma(const dd_real &a, double b, const dd_real &c) {
+  return dw_fma(a, b, c);
+}
+
 /*********** Divisions ************/
 inline dd_real dd_real::div(double a, double b) {
   double q1, q2;
@@ -340,12 +408,35 @@ inline dd_real dd_real::accurate_div(const dd_real &a, const dd_real &b) {
   return r;
 }
 
+/* Long division driven by the branch-free double-word FMA.  Same
+   correction sequence as accurate_div, but each residual
+   r <- r - q * b  is one fused dw_fma instead of a multiply followed by
+   a subtraction, which removes one renormalization per step. */
+inline dd_real dd_real::fma_div(const dd_real &a, const dd_real &b) {
+  double q1, q2, q3;
+  dd_real r;
+
+  q1 = a.x[0] / b.x[0];      /* approximate quotient */
+
+  r = dw_fma(b, -q1, a);     /* r = a - q1 * b */
+
+  q2 = r.x[0] / b.x[0];
+  r = dw_fma(b, -q2, r);     /* r = r - q2 * b */
+
+  q3 = r.x[0] / b.x[0];
+
+  q1 = qd::quick_two_sum(q1, q2, q2);
+  return dd_real(q1, q2) + q3;
+}
+
 /* double-double / double-double */
 inline dd_real operator/(const dd_real &a, const dd_real &b) {
 #ifdef QD_SLOPPY_DIV
   return dd_real::sloppy_div(a, b);
-#else
+#elif defined(QD_NO_FMA_DIV)
   return dd_real::accurate_div(a, b);
+#else
+  return dd_real::fma_div(a, b);
 #endif
 }
 

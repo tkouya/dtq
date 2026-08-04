@@ -65,6 +65,31 @@ QD_API dd_real sqrt(const dd_real &a) {
 
   double x = 1.0 / std::sqrt(a.x[0]);
   double ax = a.x[0] * x;
+
+  /* d = high word of (a - ax*ax).  Computed with the same error-free
+     product the branch-free FMA is built on: two_sqr(ax) is exact, and
+     a.x[0] - p is exact by Sterbenz (p is within a factor of two of
+     a.x[0]), so no double-double subtraction is needed here. */
+  double e;
+  double p = qd::two_sqr(ax, e);
+  double d = ((a.x[0] - p) - e) + a.x[1];
+
+  return dd_real::add(ax, d * (x * 0.5));
+}
+
+/* Reference (pre-0.0.3) square root, kept so that the benchmark can
+   measure what the branch-free FMA buys us. */
+QD_API dd_real sqrt_legacy(const dd_real &a) {
+  if (a.is_zero())
+    return 0.0;
+
+  if (a.is_negative()) {
+    dd_real::error("(dd_real::sqrt_legacy): Negative argument.");
+    return dd_real::_nan;
+  }
+
+  double x = 1.0 / std::sqrt(a.x[0]);
+  double ax = a.x[0] * x;
   return dd_real::add(ax, (a - dd_real::sqr(ax)).x[0] * (x * 0.5));
 }
 
