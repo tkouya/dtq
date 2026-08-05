@@ -648,13 +648,13 @@ td_real td_real::fma_div(const td_real &a, const td_real &b) {
   td_real r;
 
   q0 = a[0] / b[0];
-  r = tw_fma(b, -q0, a);       /* r = a - q0 * b */
+  r = tw_fma_safe(b, -q0, a);       /* r = a - q0 * b */
 
   q1 = r[0] / b[0];
-  r = tw_fma(b, -q1, r);
+  r = tw_fma_safe(b, -q1, r);
 
   q2 = r[0] / b[0];
-  r = tw_fma(b, -q2, r);
+  r = tw_fma_safe(b, -q2, r);
 
   q3 = r[0] / b[0];
 

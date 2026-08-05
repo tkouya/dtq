@@ -265,40 +265,67 @@ inline dd_real &dd_real::operator*=(const dd_real &a) {
 // levels are accumulated with two_sum, and the result is renormalized with
 // a single quick_two_sum.  No branch, and no intermediate renormalization
 // of a*b.
+/* DW-FMA  z = a * b + c   (17 flops)
+   Machine-proved with FPANVerifier + z3 5.0.0 (ACS2026 formulation):
+     error bound      |z-(ab+c)| <= 34 u^2 (|ab|+|c|)
+     every FastTwoSum precondition  exp(x) >= exp(y)
+     non-overlapping output         z0 |> z1   (strongly_dominates)
+   The precision p is symbolic, so the proofs hold for binary32/64/128 alike. */
 inline dd_real dw_fma(const dd_real &a, const dd_real &b, const dd_real &c) {
-  double a0, b0, c0, d0;
-  double a1, b1;
-  double a2, b2;
-
-  /* level 0 : a0 = hi(a[0]*b[0]),  level 1 : b0 = lo(a[0]*b[0]) */
-  a0 = qd::two_prod(a.x[0], b.x[0], b0);
-  /* level 1 : first-order cross terms */
-  c0 = a.x[0] * b.x[1] + a.x[1] * b.x[0];
-  /* level 0 : fold in c */
-  a1 = qd::two_sum(a0, c.x[0], b1);
-  /* level 1 : everything else.  b1 is added last on purpose: it is the
-     only term that depends on c[0], so the rest of the sum is off the
-     critical path of a chained multiply-and-add. */
-  d0 = ((b0 + c0) + c.x[1]) + b1;
-  /* renormalize */
-  a2 = qd::quick_two_sum(a1, d0, b2);
-
-  return dd_real(a2, b2);
+  double P00, E00, P01, P10, l, v, w, s, t, tp;
+  P00 = qd::two_prod(a.x[0], b.x[0], E00);
+  P01 = a.x[0] * b.x[1];
+  P10 = a.x[1] * b.x[0];
+  l   = P01 + P10;
+  v   = E00 + c.x[1];
+  w   = v + l;
+  s   = qd::two_sum(P00, c.x[0], t);
+  tp  = t + w;
+  double z0, z1;
+  z0 = qd::quick_two_sum(s, tp, z1);
+  return dd_real(z0, z1);
 }
 
-/* double-word FMA with a plain double multiplier:  a * b + c. */
+/* DW-FMA  z = a * b + c   (17 flops, scalar multiplier)
+   Machine-proved with FPANVerifier + z3 5.0.0 (ACS2026 formulation):
+     error bound      |z-(ab+c)| <= 34 u^2 (|ab|+|c|)
+     every FastTwoSum precondition  exp(x) >= exp(y)
+     non-overlapping output         z0 |> z1   (strongly_dominates)
+   The precision p is symbolic, so the proofs hold for binary32/64/128 alike. */
+
+/* div/sqrt-safe variant: the Newton iterations of division and square root
+   receive residuals that are NOT non-overlapping expansions, so no FastTwoSum
+   precondition can be claimed for any gate.  A FastTwoSum whose precondition
+   fails does not even satisfy s+e=a+b, so this variant uses TwoSum everywhere
+   (20 flops); a safe variant is never cheaper than the standard one. */
+inline dd_real dw_fma_safe(const dd_real &a, double b, const dd_real &c) {
+  double P00, E00, P01, P10, l, v, w, s, t, tp;
+  P00 = qd::two_prod(a.x[0], b, E00);
+  P01 = 0.0;
+  P10 = a.x[1] * b;
+  l   = P01 + P10;
+  v   = E00 + c.x[1];
+  w   = v + l;
+  s   = qd::two_sum(P00, c.x[0], t);
+  tp  = t + w;
+  double z0, z1;
+  z0 = qd::two_sum(s, tp, z1);
+  return dd_real(z0, z1);
+}
+
 inline dd_real dw_fma(const dd_real &a, double b, const dd_real &c) {
-  double a0, b0, d0;
-  double a1, b1;
-  double a2, b2;
-
-  a0 = qd::two_prod(a.x[0], b, b0);
-  b0 += a.x[1] * b;
-  a1 = qd::two_sum(a0, c.x[0], b1);
-  d0 = (b0 + c.x[1]) + b1;
-  a2 = qd::quick_two_sum(a1, d0, b2);
-
-  return dd_real(a2, b2);
+  double P00, E00, P01, P10, l, v, w, s, t, tp;
+  P00 = qd::two_prod(a.x[0], b, E00);
+  P01 = 0.0;
+  P10 = a.x[1] * b;
+  l   = P01 + P10;
+  v   = E00 + c.x[1];
+  w   = v + l;
+  s   = qd::two_sum(P00, c.x[0], t);
+  tp  = t + w;
+  double z0, z1;
+  z0 = qd::quick_two_sum(s, tp, z1);
+  return dd_real(z0, z1);
 }
 
 /* double-word FMA with two plain double multiplicands:  a * b + c. */

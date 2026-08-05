@@ -795,111 +795,239 @@ inline qd_real operator*(const qd_real &a, const qd_real &b) {
 #endif
 }
 
-// 2026-08-04 T.Kouya
-// Branch free algorithm: quad-word FMA,  z = a * b + c.
-//
-// Every term of the exact product a*b and every word of c is assigned to
-// the magnitude level it belongs to (level 0 ~ 1, level 1 ~ eps,
-// level 2 ~ eps^2, level 3 ~ eps^3).  Each level is accumulated with
-// two_sum, the errors spilling one level down, and the four level
-// accumulators are renormalized by the same quick_two_sum network used by
-// qd_real::bf_add.  No branch anywhere, and a*b is never renormalized on
-// its own.
+/* QW-FMA  z = a * b + c   (176 flops)
+   Machine-proved with FPANVerifier + z3 5.0.0 (ACS2026 formulation):
+     error bound      |z-(ab+c)| <= 812 u^4 (|ab|+|c|)
+     every FastTwoSum precondition  exp(x) >= exp(y)
+     non-overlapping output         z0 |> z1 |> z2 |> z3   (strongly_dominates)
+   The precision p is symbolic, so the proofs hold for binary32/64/128 alike.
+   Normalization repeats a cascade over adjacent pairs; the pass count is the
+   smallest for which the non-overlap is provable (DW 1 / TW 3 / QW 5).  Two
+   passes -- the classical choice -- cannot prove it: for QW not even the
+   weakest relation p_dominates holds, because TwoSum(P00,c0) may cancel
+   completely when a*b ~= -c and the leading word must be rebuilt from below. */
 inline qd_real qw_fma(const qd_real &a, const qd_real &b, const qd_real &c) {
-  double a0, b0, c0, d0, e0, f0, g0, h0, i0, j0, k0, l0, m0;
-  double a1, b1, c1, d1, e1, f1, g1;
-  double a2, b2, c2, d2, e2, f2, g2, h2, i2, j2, k2;
-  double a3, b3, c3, d3, e3;
-  double a4, b4, c4, d4;
-  double a5, b5, c5, d5;
-  double a6, b6, c6, d6;
-  double a7, b7;
-
-  /* --- products ------------------------------------------------- */
-  a0 = qd::two_prod(a[0], b[0], b0);        /* level 0 / level 1 */
-  c0 = qd::two_prod(a[0], b[1], g0);        /* level 1 / level 2 */
-  d0 = qd::two_prod(a[1], b[0], h0);        /* level 1 / level 2 */
-  e0 = qd::two_prod(a[0], b[2], i0);        /* level 2 / level 3 */
-  f0 = qd::two_prod(a[1], b[1], j0);        /* level 2 / level 3 */
-  k0 = qd::two_prod(a[2], b[0], l0);        /* level 2 / level 3 */
-  m0 = (a[0] * b[3] + a[3] * b[0])          /* level 3 */
-     + (a[1] * b[2] + a[2] * b[1]);
-
-  /* --- level 0 -------------------------------------------------- */
-  a1 = qd::two_sum(a0, c[0], b1);           /* b1 spills to level 1 */
-
-  /* --- level 1 : b0, c0, d0, c[1], b1 --------------------------- */
-  c1 = qd::two_sum(c0, d0, d1);
-  e1 = qd::two_sum(b0, c[1], f1);
-  a2 = qd::two_sum(c1, e1, b2);
-  g1 = qd::two_sum(a2, b1, c2);             /* level-1 accumulator g1 */
-
-  /* --- level 2 : g0, h0, e0, f0, k0, c[2] and the level-1 spills - */
-  d2 = qd::two_sum(g0, h0, e2);
-  f2 = qd::two_sum(e0, f0, g2);
-  h2 = qd::two_sum(k0, c[2], i2);
-  j2 = qd::two_sum(d1, f1, k2);
-  a3 = qd::two_sum(b2, c2, b3);
-  c3 = qd::two_sum(d2, f2, d3);
-  e3 = qd::two_sum(h2, j2, a4);
-  b4 = qd::two_sum(c3, e3, c4);
-  a5 = qd::two_sum(b4, a3, d4);             /* level-2 accumulator a5 */
-
-  /* --- level 3 : everything left ------------------------------- */
-  b5 = (((i0 + j0) + (l0 + m0)) + c[3])
-     + (((e2 + g2) + (i2 + k2)) + ((b3 + d3) + (a4 + c4) + d4));
-
-  /* --- branch-free renormalization (as in qd_real::bf_add) ------ */
-  c5 = qd::quick_two_sum(a1, g1, d5);       /* level 0 + level 1 */
-  a6 = qd::quick_two_sum(a5, b5, b6);       /* level 2 + level 3 */
-  c6 = qd::quick_two_sum(d5, a6, d6);
-  a7 = qd::quick_two_sum(d6, b6, b7);
-
-  return qd_real(c5, c6, a7, b7);
+  double P00, E00, P01, E01, P10, E10, P02, E02, P11, E11, P20, E20;
+  double P03, P12, P21, P30, D, B, r, Et;
+  double A1, f1, f2, f3, f4;
+  double A2, g1, g2, g3, g4, g5, g6, g7, g8, g9;
+  double A3, t1, t2, t3, t4;
+  double w0, w1, w2, w3;
+  P00 = qd::two_prod(a[0], b[0], E00);
+  P01 = qd::two_prod(a[0], b[1], E01);
+  P10 = qd::two_prod(a[1], b[0], E10);
+  P02 = qd::two_prod(a[0], b[2], E02);
+  P11 = qd::two_prod(a[1], b[1], E11);
+  P20 = qd::two_prod(a[2], b[0], E20);
+  P03 = a[0] * b[3];
+  P12 = a[1] * b[2];
+  P21 = a[2] * b[1];
+  P30 = a[3] * b[0];
+  D   = (P03 + P30) + (P12 + P21);
+  B   = qd::two_sum(P00, c[0], r);
+  A1  = qd::two_sum(P01, P10, f1);
+  A1  = qd::two_sum(A1, E00, f2);
+  A1  = qd::two_sum(A1, c[1], f3);
+  A1  = qd::two_sum(A1, r, f4);
+  A2  = qd::two_sum(P02, P20, g1);
+  A2  = qd::two_sum(A2, P11, g2);
+  Et  = qd::two_sum(E01, E10, g4);
+  A2  = qd::two_sum(A2, Et, g3);
+  A2  = qd::two_sum(A2, c[2], g5);
+  A2  = qd::two_sum(A2, f1, g6);
+  A2  = qd::two_sum(A2, f2, g7);
+  A2  = qd::two_sum(A2, f3, g8);
+  A2  = qd::two_sum(A2, f4, g9);
+  t1  = E02 + E20;
+  t2  = E11 + D;
+  t3  = (t1 + t2) + c[3];
+  t1  = g1 + g2;
+  t2  = g3 + g4;
+  t1  = t1 + t2;
+  t2  = g6 + g7;
+  t4  = g8 + g9;
+  t2  = t2 + t4;
+  t1  = t1 + t2;
+  t1  = t1 + g5;
+  A3  = t3 + t1;
+  double z0, z1, z2, z3;
+  /* renormalization pass 1/5 */
+  w0 = qd::quick_two_sum(B, A1, w1);
+  w1 = qd::two_sum(w1, A2, w2);
+  w2 = qd::two_sum(w2, A3, w3);
+  /* renormalization pass 2/5 */
+  w0 = qd::two_sum(w0, w1, w1);
+  w1 = qd::two_sum(w1, w2, w2);
+  w2 = qd::quick_two_sum(w2, w3, w3);
+  /* renormalization pass 3/5 */
+  w0 = qd::two_sum(w0, w1, w1);
+  w1 = qd::quick_two_sum(w1, w2, w2);
+  w2 = qd::quick_two_sum(w2, w3, w3);
+  /* renormalization pass 4/5 */
+  w0 = qd::quick_two_sum(w0, w1, w1);
+  w1 = qd::quick_two_sum(w1, w2, w2);
+  w2 = qd::quick_two_sum(w2, w3, w3);
+  /* renormalization pass 5/5 */
+  z0 = qd::quick_two_sum(w0, w1, w1);
+  z1 = qd::quick_two_sum(w1, w2, w2);
+  z2 = qd::quick_two_sum(w2, w3, z3);
+  return qd_real(z0, z1, z2, z3);
 }
 
-/* quad-word FMA with a plain double multiplier:  a * b + c. */
+/* QW-FMA  z = a * b + c   (176 flops, scalar multiplier)
+   Machine-proved with FPANVerifier + z3 5.0.0 (ACS2026 formulation):
+     error bound      |z-(ab+c)| <= 812 u^4 (|ab|+|c|)
+     every FastTwoSum precondition  exp(x) >= exp(y)
+     non-overlapping output         z0 |> z1 |> z2 |> z3   (strongly_dominates)
+   The precision p is symbolic, so the proofs hold for binary32/64/128 alike.
+   Normalization repeats a cascade over adjacent pairs; the pass count is the
+   smallest for which the non-overlap is provable (DW 1 / TW 3 / QW 5).  Two
+   passes -- the classical choice -- cannot prove it: for QW not even the
+   weakest relation p_dominates holds, because TwoSum(P00,c0) may cancel
+   completely when a*b ~= -c and the leading word must be rebuilt from below. */
+
+/* div/sqrt-safe variants: the Newton iterations of division and square root
+   receive residuals that are NOT non-overlapping expansions, so the input
+   assumptions behind the machine proof do not hold and no FastTwoSum
+   precondition can be claimed for any gate.  A FastTwoSum whose precondition
+   fails does not even satisfy s+e=a+b -- it is no longer an EFT -- so these
+   variants use TwoSum everywhere.  The pass count is the same as the standard
+   variant, hence a safe variant is never cheaper than the standard one
+   (DW 20 / TW 84 / QW 206 flops). */
+inline qd_real qw_fma_safe(const qd_real &a, double b, const qd_real &c) {
+  double P00, E00, P01, E01, P10, E10, P02, E02, P11, E11, P20, E20;
+  double P03, P12, P21, P30, D, B, r, Et;
+  double A1, f1, f2, f3, f4;
+  double A2, g1, g2, g3, g4, g5, g6, g7, g8, g9;
+  double A3, t1, t2, t3, t4;
+  double w0, w1, w2, w3;
+  P00 = qd::two_prod(a[0], b, E00);
+  P01 = 0.0; E01 = 0.0;
+  P10 = qd::two_prod(a[1], b, E10);
+  P02 = 0.0; E02 = 0.0;
+  P11 = 0.0; E11 = 0.0;
+  P20 = qd::two_prod(a[2], b, E20);
+  P03 = 0.0;
+  P12 = 0.0;
+  P21 = 0.0;
+  P30 = a[3] * b;
+  D   = (P03 + P30) + (P12 + P21);
+  B   = qd::two_sum(P00, c[0], r);
+  A1  = qd::two_sum(P01, P10, f1);
+  A1  = qd::two_sum(A1, E00, f2);
+  A1  = qd::two_sum(A1, c[1], f3);
+  A1  = qd::two_sum(A1, r, f4);
+  A2  = qd::two_sum(P02, P20, g1);
+  A2  = qd::two_sum(A2, P11, g2);
+  Et  = qd::two_sum(E01, E10, g4);
+  A2  = qd::two_sum(A2, Et, g3);
+  A2  = qd::two_sum(A2, c[2], g5);
+  A2  = qd::two_sum(A2, f1, g6);
+  A2  = qd::two_sum(A2, f2, g7);
+  A2  = qd::two_sum(A2, f3, g8);
+  A2  = qd::two_sum(A2, f4, g9);
+  t1  = E02 + E20;
+  t2  = E11 + D;
+  t3  = (t1 + t2) + c[3];
+  t1  = g1 + g2;
+  t2  = g3 + g4;
+  t1  = t1 + t2;
+  t2  = g6 + g7;
+  t4  = g8 + g9;
+  t2  = t2 + t4;
+  t1  = t1 + t2;
+  t1  = t1 + g5;
+  A3  = t3 + t1;
+  double z0, z1, z2, z3;
+  /* renormalization pass 1/5 */
+  w0 = qd::two_sum(B, A1, w1);
+  w1 = qd::two_sum(w1, A2, w2);
+  w2 = qd::two_sum(w2, A3, w3);
+  /* renormalization pass 2/5 */
+  w0 = qd::two_sum(w0, w1, w1);
+  w1 = qd::two_sum(w1, w2, w2);
+  w2 = qd::two_sum(w2, w3, w3);
+  /* renormalization pass 3/5 */
+  w0 = qd::two_sum(w0, w1, w1);
+  w1 = qd::two_sum(w1, w2, w2);
+  w2 = qd::two_sum(w2, w3, w3);
+  /* renormalization pass 4/5 */
+  w0 = qd::two_sum(w0, w1, w1);
+  w1 = qd::two_sum(w1, w2, w2);
+  w2 = qd::two_sum(w2, w3, w3);
+  /* renormalization pass 5/5 */
+  z0 = qd::two_sum(w0, w1, w1);
+  z1 = qd::two_sum(w1, w2, w2);
+  z2 = qd::two_sum(w2, w3, z3);
+  return qd_real(z0, z1, z2, z3);
+}
+
 inline qd_real qw_fma(const qd_real &a, double b, const qd_real &c) {
-  double a0, b0, c0, d0, e0, f0, g0;
-  double a1, b1, c1, d1, e1, f1, g1;
-  double a2, b2, c2, d2, e2, f2;
-  double a3, b3, c3;
-  double a4, b4, c4;
-  double a5, b5, c5, d5;
-  double a6, b6;
-  double a7, b7;
-
-  a0 = qd::two_prod(a[0], b, b0);           /* level 0 / level 1 */
-  c0 = qd::two_prod(a[1], b, d0);           /* level 1 / level 2 */
-  e0 = qd::two_prod(a[2], b, f0);           /* level 2 / level 3 */
-  g0 = a[3] * b;                            /* level 3 */
-
-  /* level 0 */
-  a1 = qd::two_sum(a0, c[0], b1);
-
-  /* level 1 : b0, c0, c[1], b1 */
-  c1 = qd::two_sum(b0, c0, d1);
-  e1 = qd::two_sum(c[1], b1, f1);
-  g1 = qd::two_sum(c1, e1, a2);             /* level-1 accumulator g1 */
-
-  /* level 2 : d0, e0, c[2] and the level-1 spills */
-  b2 = qd::two_sum(d0, e0, c2);
-  d2 = qd::two_sum(c[2], d1, e2);
-  f2 = qd::two_sum(f1, a2, a3);
-  b3 = qd::two_sum(b2, d2, c3);
-  a4 = qd::two_sum(b3, f2, b4);             /* level-2 accumulator a4 */
-
-  /* level 3 */
-  c4 = ((f0 + g0) + c[3])
-     + (((c2 + e2) + (a3 + c3)) + b4);
-
-  /* branch-free renormalization */
-  a5 = qd::quick_two_sum(a1, g1, b5);       /* level 0 + level 1 */
-  c5 = qd::quick_two_sum(a4, c4, d5);       /* level 2 + level 3 */
-  a6 = qd::quick_two_sum(b5, c5, b6);
-  a7 = qd::quick_two_sum(b6, d5, b7);
-
-  return qd_real(a5, a6, a7, b7);
+  double P00, E00, P01, E01, P10, E10, P02, E02, P11, E11, P20, E20;
+  double P03, P12, P21, P30, D, B, r, Et;
+  double A1, f1, f2, f3, f4;
+  double A2, g1, g2, g3, g4, g5, g6, g7, g8, g9;
+  double A3, t1, t2, t3, t4;
+  double w0, w1, w2, w3;
+  P00 = qd::two_prod(a[0], b, E00);
+  P01 = 0.0; E01 = 0.0;
+  P10 = qd::two_prod(a[1], b, E10);
+  P02 = 0.0; E02 = 0.0;
+  P11 = 0.0; E11 = 0.0;
+  P20 = qd::two_prod(a[2], b, E20);
+  P03 = 0.0;
+  P12 = 0.0;
+  P21 = 0.0;
+  P30 = a[3] * b;
+  D   = (P03 + P30) + (P12 + P21);
+  B   = qd::two_sum(P00, c[0], r);
+  A1  = qd::two_sum(P01, P10, f1);
+  A1  = qd::two_sum(A1, E00, f2);
+  A1  = qd::two_sum(A1, c[1], f3);
+  A1  = qd::two_sum(A1, r, f4);
+  A2  = qd::two_sum(P02, P20, g1);
+  A2  = qd::two_sum(A2, P11, g2);
+  Et  = qd::two_sum(E01, E10, g4);
+  A2  = qd::two_sum(A2, Et, g3);
+  A2  = qd::two_sum(A2, c[2], g5);
+  A2  = qd::two_sum(A2, f1, g6);
+  A2  = qd::two_sum(A2, f2, g7);
+  A2  = qd::two_sum(A2, f3, g8);
+  A2  = qd::two_sum(A2, f4, g9);
+  t1  = E02 + E20;
+  t2  = E11 + D;
+  t3  = (t1 + t2) + c[3];
+  t1  = g1 + g2;
+  t2  = g3 + g4;
+  t1  = t1 + t2;
+  t2  = g6 + g7;
+  t4  = g8 + g9;
+  t2  = t2 + t4;
+  t1  = t1 + t2;
+  t1  = t1 + g5;
+  A3  = t3 + t1;
+  double z0, z1, z2, z3;
+  /* renormalization pass 1/5 */
+  w0 = qd::quick_two_sum(B, A1, w1);
+  w1 = qd::two_sum(w1, A2, w2);
+  w2 = qd::two_sum(w2, A3, w3);
+  /* renormalization pass 2/5 */
+  w0 = qd::two_sum(w0, w1, w1);
+  w1 = qd::two_sum(w1, w2, w2);
+  w2 = qd::quick_two_sum(w2, w3, w3);
+  /* renormalization pass 3/5 */
+  w0 = qd::two_sum(w0, w1, w1);
+  w1 = qd::quick_two_sum(w1, w2, w2);
+  w2 = qd::quick_two_sum(w2, w3, w3);
+  /* renormalization pass 4/5 */
+  w0 = qd::quick_two_sum(w0, w1, w1);
+  w1 = qd::quick_two_sum(w1, w2, w2);
+  w2 = qd::quick_two_sum(w2, w3, w3);
+  /* renormalization pass 5/5 */
+  z0 = qd::quick_two_sum(w0, w1, w1);
+  z1 = qd::quick_two_sum(w1, w2, w2);
+  z2 = qd::quick_two_sum(w2, w3, z3);
+  return qd_real(z0, z1, z2, z3);
 }
 
 inline qd_real fma(const qd_real &a, const qd_real &b, const qd_real &c) {

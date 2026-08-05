@@ -746,16 +746,16 @@ qd_real qd_real::fma_div(const qd_real &a, const qd_real &b) {
   qd_real r;
 
   q0 = a[0] / b[0];
-  r = qw_fma(b, -q0, a);        /* r = a - q0 * b */
+  r = qw_fma_safe(b, -q0, a);        /* r = a - q0 * b */
 
   q1 = r[0] / b[0];
-  r = qw_fma(b, -q1, r);
+  r = qw_fma_safe(b, -q1, r);
 
   q2 = r[0] / b[0];
-  r = qw_fma(b, -q2, r);
+  r = qw_fma_safe(b, -q2, r);
 
   q3 = r[0] / b[0];
-  r = qw_fma(b, -q3, r);
+  r = qw_fma_safe(b, -q3, r);
 
   q4 = r[0] / b[0];
 
