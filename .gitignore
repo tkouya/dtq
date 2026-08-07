@@ -46,5 +46,6 @@ configure~
 /tests/qd_timer
 /tests/quadt_test
 /tests/huge
+/tests/elem_bench
 /tests/*.log
 /tests/*.trs

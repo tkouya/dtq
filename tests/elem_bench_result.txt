@@ -1,0 +1,242 @@
+==============================================================
+ dtq-0.0.3 elementary function benchmark
+==============================================================
+
+[1] Exception / special-value handling
+    (msg = error message emitted on stderr)
+
+--- dd_real ---
+  sqrt(-1)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (dd_real::sqrt): Negative argument.]
+  sqrt(0)                expect=0        got=0          msg=no   PASS 
+  sqrt(NaN)              expect=NaN      got=NaN        msg=no   PASS 
+  log(-1)                expect=NaN      got=NaN        msg=yes  PASS [ERROR (dd_real::log): Non-positive argument.]
+  exp(+1e5)              expect=+Inf     got=+Inf       msg=no   PASS 
+  exp(-1e5)              expect=0        got=0          msg=no   PASS 
+  exp(0)                 expect=1        got=1          msg=no   PASS 
+  exp(NaN)               expect=NaN      got=NaN        msg=no   PASS 
+  sin(NaN)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (dd_real::sin): Cannot reduce modul...]
+  exp(+Inf)              expect=+Inf     got=+Inf       msg=no   PASS 
+  log(+Inf)              expect=(report) got=NaN        msg=no   INFO 
+  nroot(-2,2)            expect=NaN      got=NaN        msg=yes  PASS [ERROR (dd_real::nroot): Negative argument.]
+  nroot(2,-1)            expect=NaN      got=NaN        msg=yes  PASS [ERROR (dd_real::nroot): N must be positive.]
+  npwr(0,0)              expect=NaN      got=NaN        msg=yes  PASS [ERROR (dd_real::npwr): Invalid argument.]
+  sin(1e60)              expect=(report) got=0          msg=no   INFO 
+  log(0)                 expect=NaN      got=NaN        msg=yes  PASS [ERROR (dd_real::log): Non-positive argument.]
+  asin(2)                expect=NaN      got=NaN        msg=yes  PASS [ERROR (dd_real::asin): Argument out of do...]
+  acos(-2)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (dd_real::acos): Argument out of do...]
+  atan2(0,0)             expect=NaN      got=NaN        msg=yes  PASS [ERROR (dd_real::atan2): Both arguments zero.]
+  acosh(0.5)             expect=NaN      got=NaN        msg=yes  PASS [ERROR (dd_real::acosh): Argument out of d...]
+  atanh(1)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (dd_real::atanh): Argument out of d...]
+  atanh(-2)              expect=NaN      got=NaN        msg=yes  PASS [ERROR (dd_real::atanh): Argument out of d...]
+
+--- td_real ---
+  sqrt(-1)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (td_real::sqrt): Negative argument.]
+  sqrt(0)                expect=0        got=0          msg=no   PASS 
+  sqrt(NaN)              expect=NaN      got=NaN        msg=no   PASS 
+  log(-1)                expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::log): Non-positive argument.]
+  exp(+1e5)              expect=+Inf     got=+Inf       msg=no   PASS 
+  exp(-1e5)              expect=0        got=0          msg=no   PASS 
+  exp(0)                 expect=1        got=1          msg=no   PASS 
+  exp(NaN)               expect=NaN      got=NaN        msg=no   PASS 
+  sin(NaN)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::sin): Cannot reduce modul...]
+  exp(+Inf)              expect=+Inf     got=+Inf       msg=no   PASS 
+  log(+Inf)              expect=(report) got=NaN        msg=no   INFO 
+  nroot(-2,2)            expect=NaN      got=NaN        msg=yes  PASS [ERROR (td_real::nroot): Negative argument.]
+  nroot(2,-1)            expect=NaN      got=NaN        msg=yes  PASS [ERROR (td_real::nroot): N must be positive.]
+  npwr(0,0)              expect=NaN      got=1          msg=no   FAIL 
+  sin(1e60)              expect=(report) got=-5.60787738e-01 msg=no   INFO 
+  log(0)                 expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::log): Non-positive argument.]
+  asin(2)                expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::asin): Argument out of do...]
+  acos(-2)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::acos): Argument out of do...]
+  atan2(0,0)             expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::atan2): Both arguments zero.]
+  acosh(0.5)             expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::acosh): Argument out of d...]
+  atanh(1)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::atanh): Argument out of d...]
+  atanh(-2)              expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::atanh): Argument out of d...]
+
+--- qd_real ---
+  sqrt(-1)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::sqrt): Negative argument.]
+  sqrt(0)                expect=0        got=0          msg=no   PASS 
+  sqrt(NaN)              expect=NaN      got=NaN        msg=no   PASS 
+  log(-1)                expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::log): Non-positive argument.]
+  exp(+1e5)              expect=+Inf     got=+Inf       msg=no   PASS 
+  exp(-1e5)              expect=0        got=0          msg=no   PASS 
+  exp(0)                 expect=1        got=1          msg=no   PASS 
+  exp(NaN)               expect=NaN      got=NaN        msg=no   PASS 
+  sin(NaN)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::sin): Cannot reduce modul...]
+  exp(+Inf)              expect=+Inf     got=+Inf       msg=no   PASS 
+  log(+Inf)              expect=(report) got=NaN        msg=no   INFO 
+  nroot(-2,2)            expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::nroot): Negative argument.]
+  nroot(2,-1)            expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::nroot): N must be positive.]
+  npwr(0,0)              expect=NaN      got=1          msg=no   FAIL 
+  sin(1e60)              expect=(report) got=-5.60787738e-01 msg=no   INFO 
+  log(0)                 expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::log): Non-positive argument.]
+  asin(2)                expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::asin): Argument out of do...]
+  acos(-2)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::acos): Argument out of do...]
+  atan2(0,0)             expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::atan2): Both arguments zero.]
+  acosh(0.5)             expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::acosh): Argument out of d...]
+  atanh(1)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::atanh): Argument out of d...]
+  atanh(-2)              expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::atanh): Argument out of d...]
+
+--- ds_real ---
+  sqrt(-1)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (ds_real): sqrt: Negative argument.]
+  sqrt(0)                expect=0        got=0          msg=no   PASS 
+  sqrt(NaN)              expect=NaN      got=NaN        msg=no   PASS 
+  log(-1)                expect=NaN      got=NaN        msg=yes  PASS [ERROR (ds_real): log: Negative argument.]
+  exp(+1e5)              expect=+Inf     got=NaN        msg=no   FAIL 
+  exp(-1e5)              expect=0        got=0          msg=no   PASS 
+  exp(0)                 expect=1        got=1          msg=no   PASS 
+  exp(NaN)               expect=NaN      got=NaN        msg=no   PASS 
+  sin(NaN)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (dd_real::sin): Cannot reduce modul...]
+  exp(+Inf)              expect=+Inf     got=NaN        msg=no   FAIL 
+  log(+Inf)              expect=(report) got=NaN        msg=no   INFO 
+  nroot(-2,2)            expect=NaN      got=NaN        msg=yes  PASS [ERROR (ds_real): nroot: Negative argument.]
+  nroot(2,-1)            expect=NaN      got=NaN        msg=yes  PASS [ERROR (ds_real): nroot: N must be positive.]
+  npwr(0,0)              expect=NaN      got=NaN        msg=yes  PASS [ERROR (ds_real): npwr: Invalid 0^0.]
+  sin(1e60)              expect=(report) got=NaN        msg=yes  INFO [ERROR (dd_real::sin): Cannot reduce modul...]
+  log(0)                 expect=-Inf     got=-Inf       msg=no   PASS 
+
+--- ts_real ---
+  sqrt(-1)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (ts_real): sqrt: Negative argument.]
+  sqrt(0)                expect=0        got=0          msg=no   PASS 
+  sqrt(NaN)              expect=NaN      got=NaN        msg=no   PASS 
+  log(-1)                expect=NaN      got=NaN        msg=yes  PASS [ERROR (ts_real): log: Negative argument.]
+  exp(+1e5)              expect=+Inf     got=NaN        msg=no   FAIL 
+  exp(-1e5)              expect=0        got=0          msg=no   PASS 
+  exp(0)                 expect=1        got=1          msg=no   PASS 
+  exp(NaN)               expect=NaN      got=NaN        msg=no   PASS 
+  sin(NaN)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::sin): Cannot reduce modul...]
+  exp(+Inf)              expect=+Inf     got=NaN        msg=no   FAIL 
+  log(+Inf)              expect=(report) got=NaN        msg=no   INFO 
+  nroot(-2,2)            expect=NaN      got=NaN        msg=yes  PASS [ERROR (ts_real): nroot: Negative argument.]
+  nroot(2,-1)            expect=NaN      got=NaN        msg=yes  PASS [ERROR (ts_real): nroot: N must be positive.]
+  npwr(0,0)              expect=NaN      got=NaN        msg=yes  PASS [ERROR (ts_real): npwr: Invalid 0^0.]
+  sin(1e60)              expect=(report) got=NaN        msg=yes  INFO [ERROR (qd_real::sin): Cannot reduce modul...]
+  log(0)                 expect=-Inf     got=-Inf       msg=no   PASS 
+
+--- qs_real ---
+  sqrt(-1)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (qs_real): sqrt: Negative argument.]
+  sqrt(0)                expect=0        got=0          msg=no   PASS 
+  sqrt(NaN)              expect=NaN      got=NaN        msg=no   PASS 
+  log(-1)                expect=NaN      got=NaN        msg=yes  PASS [ERROR (qs_real): log: Negative argument.]
+  exp(+1e5)              expect=+Inf     got=NaN        msg=no   FAIL 
+  exp(-1e5)              expect=0        got=0          msg=no   PASS 
+  exp(0)                 expect=1        got=1          msg=no   PASS 
+  exp(NaN)               expect=NaN      got=NaN        msg=no   PASS 
+  sin(NaN)               expect=NaN      got=NaN        msg=yes  PASS [ERROR (qd_real::sin): Cannot reduce modul...]
+  exp(+Inf)              expect=+Inf     got=NaN        msg=no   FAIL 
+  log(+Inf)              expect=(report) got=NaN        msg=no   INFO 
+  nroot(-2,2)            expect=NaN      got=NaN        msg=yes  PASS [ERROR (qs_real): nroot: Negative argument.]
+  nroot(2,-1)            expect=NaN      got=NaN        msg=yes  PASS [ERROR (qs_real): nroot: N must be positive.]
+  npwr(0,0)              expect=NaN      got=NaN        msg=yes  PASS [ERROR (qs_real): npwr: Invalid 0^0.]
+  sin(1e60)              expect=(report) got=NaN        msg=yes  INFO [ERROR (qd_real::sin): Cannot reduce modul...]
+  log(0)                 expect=-Inf     got=-Inf       msg=no   PASS 
+
+  => 114 checks, 8 failed
+
+[2] Accuracy vs MPFR reference
+    err[ulp]: relative error scaled by 2^prec_bits
+    min/avg_bits: correct bits (higher is better)
+
+--- dd_real (theoretical 106 bits, N=200) ---
+  func     max_err[ulp] avg_err[ulp]   min_bits   avg_bits       worst_x  anom
+  sqrt             4.27        0.624      103.9      108.1    0.00229658     0
+  exp              14.1         2.98      102.2      105.2      -19.6146     0
+  log              3.64        0.757      104.1      107.3       4123.05     0
+  log10            7.17          1.6      103.2      106.0   0.000291874     0
+  sin               144         3.19       98.8      106.5      -3.14674     0
+  cos               284         4.39       97.8      106.3       4.70759     0
+  tan              7.34         1.09      103.1      106.7      -1.42897     0
+  asin             5.79         1.18      103.5      106.6     -0.658775     0
+  acos             8.11        0.636      103.0      107.8      0.980446     0
+  atan             6.09        0.444      103.4      108.3     -0.860186     0
+  sinh             5.73         1.28      103.5      106.5      -4.76009     0
+  cosh             5.52         1.06      103.5      106.6       4.99331     0
+  tanh             8.15        0.801      103.0      107.3      0.362075     0
+  asinh             168          8.6       98.6      105.4       -8.8459     0
+  acosh            2.72        0.746      104.6      107.1       37.1769     0
+  atanh            49.3          2.5      100.4      106.2    0.00738845     0
+
+--- td_real (theoretical 159 bits, N=200) ---
+  func     max_err[ulp] avg_err[ulp]   min_bits   avg_bits       worst_x  anom
+  sqrt             1.52        0.237      158.4      161.9     0.0568289     0
+  exp              0.23        0.045      161.1      164.7       19.4547     0
+  log             0.218       0.0482      161.2      164.6   0.000320781     0
+  log10           0.229       0.0267      161.1      165.8       13357.2     0
+  sin             0.205       0.0325      161.3      165.1      -2.59282     0
+  cos             0.222       0.0357      161.2      165.3      -4.43406     0
+  tan             0.223       0.0451      161.2      164.8         1.142     0
+  asin            0.225       0.0474      161.2      164.7      0.260807     0
+  acos            0.241       0.0382      161.1      165.0      0.529116     0
+  atan             0.18       0.0371      161.5      165.1      0.758477     0
+  sinh            0.218       0.0418      161.2      164.7      -1.56473     0
+  cosh            0.243       0.0464      161.0      164.8     0.0864331     0
+  tanh            0.185       0.0301      161.4      165.4       0.72047     0
+  asinh           0.242       0.0378      161.0      164.9      -3.65101     0
+  acosh           0.227       0.0477      161.1      164.7       27.9139     0
+  atanh           0.227       0.0409      161.1      165.0     -0.764276     0
+
+--- qd_real (theoretical 212 bits, N=200) ---
+  func     max_err[ulp] avg_err[ulp]   min_bits   avg_bits       worst_x  anom
+  sqrt            0.931        0.131      212.1      215.8       43.4352     0
+  exp              2.26        0.394      210.8      214.3       17.6943     0
+  log              1.45       0.0804      211.5      216.9      0.589809     0
+  log10            6.91        0.605      209.2      214.1       21.5258     0
+  sin              21.9        0.409      207.5      214.5      -3.13985     0
+  cos              2.52        0.287      210.7      214.7       -4.5754     0
+  tan              4.05        0.287      210.0      214.7      0.887345     0
+  asin             1.81        0.303      211.1      214.5      0.313931     0
+  acos             1.32        0.124      211.6      216.2      0.994047     0
+  atan            0.808       0.0955      212.3      216.5      0.197796     0
+  sinh              1.5        0.201      211.4      215.0      -2.01404     0
+  cosh             1.82        0.141      211.1      215.8      -3.58512     0
+  tanh             3.86        0.264      210.1      215.4    -0.0769504     0
+  asinh             102         2.93      205.3      213.6      -8.74214     0
+  acosh           0.641       0.0743      212.6      216.3       1.16403     0
+  atanh            68.9        0.887      205.9      214.9    -0.0418961     0
+
+--- ds_real (theoretical 48 bits, N=200) ---
+  func     max_err[ulp] avg_err[ulp]   min_bits   avg_bits       worst_x  anom
+  sqrt             3.43        0.668       46.2       50.1    0.00497211     0
+  exp             0.466        0.115       49.1       52.1      -18.6988     0
+  log             0.544        0.116       48.9       51.8       2.75457     0
+  log10            3.56        0.422       46.2       50.0       1.01201     0
+  sin              0.48        0.104       49.1       52.2      0.130531     0
+  cos             0.446        0.119       49.2       52.0      -2.14376     0
+  tan              2.71        0.554       46.6       49.7      -1.25572     0
+
+--- ts_real (theoretical 72 bits, N=200) ---
+  func     max_err[ulp] avg_err[ulp]   min_bits   avg_bits       worst_x  anom
+  sqrt             2.04        0.276       71.0       74.6      0.929393     0
+  exp             0.235       0.0395       74.1       78.1       -12.446     0
+  log             0.235        0.042       74.1       77.8       3163.95     0
+  log10            1.75        0.274       71.2       74.7         19631     0
+  sin             0.161       0.0322       74.6       78.2     -0.834415     0
+  cos             0.203       0.0377       74.3       77.9      -2.14748     0
+  tan              2.16        0.225       70.9       75.0      0.356975     0
+
+--- qs_real (theoretical 96 bits, N=200) ---
+  func     max_err[ulp] avg_err[ulp]   min_bits   avg_bits       worst_x  anom
+  sqrt             1.32        0.179       95.6       99.4       0.99511     0
+  exp             0.106       0.0133       99.2      103.8      -5.48071     0
+  log             0.101       0.0124       99.3      104.0    0.00831516     0
+  log10            3.24        0.137       94.3      100.0         49524     0
+  sin             0.102       0.0125       99.3      104.1      0.294719     0
+  cos            0.0875        0.011       99.5      104.2       4.43148     0
+  tan              3.75         0.17       94.1       99.9      -0.12735     0
+
+[3] Performance (best-pass ns/call, array size 4096)
+
+  func      double   dd_real   td_real   qd_real   ds_real   ts_real   qs_real   [ns/call]
+  add          1.5       1.0       4.0      10.5       1.1       5.0      10.0
+  mul          1.5       0.5       2.3       9.3       0.6       2.4      11.5
+  div          1.5       1.8      34.9     134.4       2.0      30.4     130.1
+  sqrt         1.5       2.5      47.9     149.8       2.4      49.1     213.5
+  exp          3.1      93.3    1242.1    1237.3      98.9    1253.3    1294.9
+  log          2.9     112.5    3914.6    4012.0     119.0    3999.6    4109.6
+  sin          4.0      84.7     852.7     848.0      87.6     861.0     910.1
+  cos          4.6      85.5     855.9     840.8      88.4     867.2     910.9
+  tan          4.9      94.4    1013.6    1014.7     179.4    1769.3    1955.0
+  asin         4.9     151.8    3885.2    3916.1         -         -         -
+  atan         4.4     142.9    3748.8    3676.6         -         -         -
+  sinh         9.4     105.2    1390.6    1385.3         -         -         -
+  tanh         9.5     112.3    1526.0    1522.7         -         -         -
