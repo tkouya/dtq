@@ -103,8 +103,7 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/ax_cxx_clock_gettime.m4 \
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(top_srcdir)/configure \
-	$(am__configure_deps) $(dist_doc_DATA) $(dist_noinst_DATA) \
-	$(am__DIST_COMMON)
+	$(am__configure_deps) $(dist_doc_DATA) $(am__DIST_COMMON)
 am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
  configure.lineno config.status.lineno
 mkinstalldirs = $(SHELL) $(top_srcdir)/config/mkinstalldirs
@@ -167,7 +166,7 @@ am__can_run_installinfo = \
     n|no|NO) false;; \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
-DATA = $(dist_doc_DATA) $(dist_noinst_DATA)
+DATA = $(dist_doc_DATA)
 RECURSIVE_CLEAN_TARGETS = mostlyclean-recursive clean-recursive	\
   distclean-recursive maintainer-clean-recursive
 am__recursive_targets = \
@@ -375,31 +374,10 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 ACLOCAL_AMFLAGS = -I m4
-SUBDIRS = config src include tests
-BUILT_SOURCES = docs/qd.pdf
-dist_doc_DATA = README README.md docs/qd.pdf \
-                docs/DTQ_QUICKREF.en.md \
-                docs/DTQ_QUICKREF.ja.md
-
-dist_noinst_DATA = docs/Makefile \
-  docs/qd.tex docs/qd.bib \
-  docs/nine-two-sum.eps docs/nine-two-sum.fig \
-  docs/normal_sum_prod.eps docs/normal_sum_prod.fig \
-  docs/qd_add.eps docs/qd_add.fig \
-  docs/qd_add_proof.eps docs/qd_add_proof.fig \
-  docs/qd_add_qd_d.eps docs/qd_add_qd_d.fig \
-  docs/qd_mul_accum.eps docs/qd_mul_accum.fig \
-  docs/qd_mul_qd_d.eps docs/qd_mul_qd_d.fig \
-  docs/quick-two-sum.eps docs/quick-two-sum.fig \
-  docs/six-three-sum.eps docs/six-three-sum.fig \
-  docs/three-sum-2.eps docs/three-sum-2.fig \
-  docs/three-sum-3.eps docs/three-sum-3.fig \
-  docs/three-sum.eps docs/three-sum.fig \
-  docs/two-prod.eps docs/two-prod.fig \
-  docs/two-sum.eps docs/two-sum.fig
-
+SUBDIRS = config src include tests docs
+dist_doc_DATA = README README.md
 bin_SCRIPTS = qd-config
-all: $(BUILT_SOURCES) config.h
+all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 
 .SUFFIXES:
@@ -832,18 +810,15 @@ distcleancheck: distclean
 	       $(distcleancheck_listfiles) ; \
 	       exit 1; } >&2
 check-am: all-am
-check: $(BUILT_SOURCES)
-	$(MAKE) $(AM_MAKEFLAGS) check-recursive
+check: check-recursive
 all-am: Makefile $(SCRIPTS) $(DATA) config.h
 installdirs: installdirs-recursive
 installdirs-am:
 	for dir in "$(DESTDIR)$(bindir)" "$(DESTDIR)$(docdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
-install: $(BUILT_SOURCES)
-	$(MAKE) $(AM_MAKEFLAGS) install-recursive
-install-exec: $(BUILT_SOURCES)
-	$(MAKE) $(AM_MAKEFLAGS) install-exec-recursive
+install: install-recursive
+install-exec: install-exec-recursive
 install-data: install-data-recursive
 uninstall: uninstall-recursive
 
@@ -872,7 +847,6 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
-	-test -z "$(BUILT_SOURCES)" || rm -f $(BUILT_SOURCES)
 clean: clean-recursive
 
 clean-am: clean-generic clean-libtool mostlyclean-am
@@ -943,8 +917,7 @@ ps-am:
 
 uninstall-am: uninstall-binSCRIPTS uninstall-dist_docDATA
 
-.MAKE: $(am__recursive_targets) all check install install-am \
-	install-exec install-strip
+.MAKE: $(am__recursive_targets) all install-am install-strip
 
 .PHONY: $(am__recursive_targets) CTAGS GTAGS TAGS all all-am \
 	am--refresh check check-am clean clean-cscope clean-generic \
@@ -967,10 +940,8 @@ uninstall-am: uninstall-binSCRIPTS uninstall-dist_docDATA
 .PRECIOUS: Makefile
 
 
-doc: docs/qd.pdf
-
-docs/qd.pdf:
-	$(MAKE) -C docsqd.pdf
+doc:
+	$(MAKE) -C docs doc
 
 changelog:
 	@if test -d "$(top_srcdir)/.git"; then \
