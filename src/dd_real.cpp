@@ -188,6 +188,14 @@ dd_real pow(const dd_real &a, int n) {
 }
 
 dd_real pow(const dd_real &a, const dd_real &b) {
+  /* Edge cases follow MPFR/IEEE pow semantics so that callers probing an
+     endpoint singularity (t^p with t -> 0) get finite answers instead of
+     nan from exp(b * log(0)).                                            */
+  if (a.is_zero()) {
+    if (b.is_zero())
+      return 1.0;
+    return (b.x[0] > 0.0) ? dd_real(0.0) : dd_real::_inf;
+  }
   return exp(b * log(a));
 }
 
@@ -291,15 +299,71 @@ dd_real log(const dd_real &a) {
     return 0.0;
   }
 
-  if (a.x[0] <= 0.0) {
-    dd_real::error("(dd_real::log): Non-positive argument.");
+  /* MPFR/IEEE semantics, silently: log(0) = -inf, log(negative) = nan.
+     Adaptive-quadrature singularity detectors legitimately evaluate
+     log of an exactly-zero error estimate, so neither case may print
+     or return nan for zero.                                           */
+  if (a.is_zero())
+    return -dd_real::_inf;
+
+  if (a.x[0] < 0.0)
     return dd_real::_nan;
-  }
 
   dd_real x = std::log(a.x[0]);   /* Initial approximation */
 
   x = x + a * exp(-x) - 1.0;
   return x;
+}
+
+/* exp(a) - 1, accurate for small |a|.
+   For |a| <= log(2)/2 the ln2 reduction in exp() is a no-op (m = 0), and
+   the repeated-squaring ladder  s <- 2s + s^2  is exactly the doubling
+   rule for u = exp(t) - 1.  So expm1 is exp() without the final +1.
+   For larger |a|, exp(a) - 1 suffers no cancellation.                  */
+dd_real expm1(const dd_real &a) {
+  const double k = 512.0;
+  const double inv_k = 1.0 / k;
+
+  if (a.x[0] <= -709.0)
+    return -1.0;
+
+  if (a.x[0] >= 709.0)
+    return dd_real::_inf;
+
+  if (a.is_zero())
+    return 0.0;
+
+  if (std::abs(a.x[0]) > 0.346573590279972655)   /* log(2)/2 */
+    return exp(a) - 1.0;
+
+  dd_real r = mul_pwr2(a, inv_k);
+  dd_real s, t, p;
+
+  p = sqr(r);
+  s = r + mul_pwr2(p, 0.5);
+  p *= r;
+  t = p * dd_real(inv_fact[0][0], inv_fact[0][1]);
+  int i = 0;
+  do {
+    s += t;
+    p *= r;
+    ++i;
+    t = p * dd_real(inv_fact[i][0], inv_fact[i][1]);
+  } while (std::abs(to_double(t)) > inv_k * dd_real::_eps && i < 5);
+
+  s += t;
+
+  s = mul_pwr2(s, 2.0) + sqr(s);
+  s = mul_pwr2(s, 2.0) + sqr(s);
+  s = mul_pwr2(s, 2.0) + sqr(s);
+  s = mul_pwr2(s, 2.0) + sqr(s);
+  s = mul_pwr2(s, 2.0) + sqr(s);
+  s = mul_pwr2(s, 2.0) + sqr(s);
+  s = mul_pwr2(s, 2.0) + sqr(s);
+  s = mul_pwr2(s, 2.0) + sqr(s);
+  s = mul_pwr2(s, 2.0) + sqr(s);
+
+  return s;      /* = exp(a) - 1, no +1 */
 }
 
 dd_real log10(const dd_real &a) {

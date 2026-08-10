@@ -268,6 +268,7 @@ QD_API td_real atan(const td_real &a);
 QD_API td_real atan2(const td_real &y, const td_real &x);
 
 QD_API td_real exp(const td_real &a);
+QD_API td_real expm1(const td_real &a);
 QD_API td_real log(const td_real &a);
 QD_API td_real log10(const td_real &a);
 
