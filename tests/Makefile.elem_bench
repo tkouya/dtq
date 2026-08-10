@@ -1,0 +1,23 @@
+# Standalone build for elem_bench (dtq elementary function benchmark).
+# Usage:  make -f Makefile.elem_bench        (after building libqd in ../src)
+#         ./elem_bench [n_accuracy_samples]
+#
+# Requires MPFR (and GMP) for the accuracy reference values.
+
+CXX      ?= g++
+DTQ_TOP  ?= ..
+MPFR_DIR ?= /usr/local
+
+CXXFLAGS ?= -O2 -ffp-contract=off -mfma
+CPPFLAGS  = -I$(DTQ_TOP)/include -I$(MPFR_DIR)/include
+LIBQD     = $(DTQ_TOP)/src/.libs/libqd.a
+LDFLAGS   = -L$(MPFR_DIR)/lib -Wl,-rpath,$(MPFR_DIR)/lib
+LDLIBS    = -lmpfr -lgmp -lm
+
+elem_bench: elem_bench.cpp $(LIBQD)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) elem_bench.cpp $(LIBQD) $(LDFLAGS) $(LDLIBS) -o $@
+
+clean:
+	rm -f elem_bench
+
+.PHONY: clean

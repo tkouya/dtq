@@ -297,7 +297,7 @@ AC_PROG_LIBTOOL
 
 # Output
 AC_CONFIG_FILES([Makefile config/Makefile src/Makefile include/Makefile
-                 tests/Makefile qd-config])
+                 tests/Makefile docs/Makefile qd-config])
 AC_OUTPUT
 chmod +x qd-config
 
