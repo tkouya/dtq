@@ -281,6 +281,7 @@ QD_API qd_real atan(const qd_real &a);
 QD_API qd_real atan2(const qd_real &y, const qd_real &x);
 
 QD_API qd_real exp(const qd_real &a);
+QD_API qd_real expm1(const qd_real &a);
 QD_API qd_real log(const qd_real &a);
 QD_API qd_real log10(const qd_real &a);
 

@@ -514,6 +514,14 @@ td_real pow(const td_real &a, int n) {
 }
 
 td_real pow(const td_real &a, const td_real &b) {
+  /* Edge cases follow MPFR/IEEE pow semantics so that callers probing an
+     endpoint singularity (t^p with t -> 0) get finite answers instead of
+     nan from exp(b * log(0)).                                            */
+  if (a.is_zero()) {
+    if (b.is_zero())
+      return 1.0;
+    return (b.x[0] > 0.0) ? td_real(0.0) : td_real::_inf;
+  }
   return exp(b * log(a));
 }
 
@@ -755,38 +763,15 @@ td_real nroot(const td_real &a, int n) {
   return 1.0 / x;
 }
 
-/* Transcendental functions are computed by promoting to qd_real,
-   calling the qd_real implementation, and truncating back to td_real. */
-
-td_real exp(const td_real &a) {
-  return td_real(exp(to_qd_real(a)));
-}
-
-td_real log(const td_real &a) {
-  return td_real(log(to_qd_real(a)));
-}
-
-td_real log10(const td_real &a) {
-  return td_real(log10(to_qd_real(a)));
-}
-
-td_real sin(const td_real &a) {
-  return td_real(sin(to_qd_real(a)));
-}
-
-td_real cos(const td_real &a) {
-  return td_real(cos(to_qd_real(a)));
-}
+/* exp / expm1 / log / log10 / sin / cos / sincos / sinh / cosh have
+   native triple-double implementations at the bottom of qd_real.cpp
+   (they share that file's inv_fact and sin/cos tables by truncation).
+   The remaining transcendentals below are still computed by promoting
+   to qd_real, calling the qd_real implementation, and truncating back
+   to td_real.                                                          */
 
 td_real tan(const td_real &a) {
   return td_real(tan(to_qd_real(a)));
-}
-
-void sincos(const td_real &a, td_real &s, td_real &c) {
-  qd_real qs, qc;
-  sincos(to_qd_real(a), qs, qc);
-  s = td_real(qs);
-  c = td_real(qc);
 }
 
 td_real asin(const td_real &a) {
@@ -803,14 +788,6 @@ td_real atan(const td_real &a) {
 
 td_real atan2(const td_real &y, const td_real &x) {
   return td_real(atan2(to_qd_real(y), to_qd_real(x)));
-}
-
-td_real sinh(const td_real &a) {
-  return td_real(sinh(to_qd_real(a)));
-}
-
-td_real cosh(const td_real &a) {
-  return td_real(cosh(to_qd_real(a)));
 }
 
 td_real tanh(const td_real &a) {

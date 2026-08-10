@@ -270,6 +270,7 @@ double to_double(const dd_real &a);
 int    to_int(const dd_real &a);
 
 QD_API dd_real exp(const dd_real &a);
+QD_API dd_real expm1(const dd_real &a);
 QD_API dd_real ldexp(const dd_real &a, int exp);
 QD_API dd_real log(const dd_real &a);
 QD_API dd_real log10(const dd_real &a);

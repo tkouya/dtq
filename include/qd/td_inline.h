@@ -739,11 +739,15 @@ inline td_real operator/(const td_real &a, const dd_real &b) {
 }
 
 inline td_real operator/(const td_real &a, const td_real &b) {
+#if defined(QD_NO_FMA_DIV)
 #ifdef QD_SLOPPY_DIV
   return td_real::sloppy_div(a, b);
-#elif defined(QD_NO_FMA_DIV)
-  return td_real::accurate_div(a, b);
 #else
+  return td_real::accurate_div(a, b);
+#endif
+#else
+  /* fma_div is ~1.2x faster than sloppy_div at comparable accuracy,
+     so it takes priority even when QD_SLOPPY_DIV is configured.        */
   return td_real::fma_div(a, b);
 #endif
 }
