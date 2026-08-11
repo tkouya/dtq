@@ -36,6 +36,21 @@ Headers: `<qd/dd_real.h>`, `<qd/td_real.h>`, `<qd/qd_real.h>`
 
 Headers: `<qd/ds_real.h>`, `<qd/ts_real.h>`, `<qd/qs_real.h>`
 
+**Effective range**: the limbs of a float-based value x sit at about
+|x|, |x|·2⁻²⁴, |x|·2⁻⁴⁸, |x|·2⁻⁷², so full precision requires the lowest
+limb to stay normal (≥ 2⁻¹²⁶):
+
+| Type | Full precision while |
+|---|---|
+| `ds_real` | \|x\| ≥ 2⁻¹⁰² (~2.0e-31) |
+| `ts_real` | \|x\| ≥ 2⁻⁷⁸ (~3.3e-24) |
+| `qs_real` | \|x\| ≥ 2⁻⁵⁴ (~5.5e-17) |
+
+Below the threshold precision degrades by about one bit per halving,
+regardless of the algorithm (e.g. division results whose quotient falls
+below the threshold can be off by tens of eps).  The double-based types
+are unaffected in practice (thresholds 2⁻⁸⁶⁶ and below).
+
 ---
 
 ## 2. Build and install

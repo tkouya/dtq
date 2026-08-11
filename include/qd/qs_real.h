@@ -21,6 +21,10 @@
 #include <qd/ds_real.h>
 #include <qd/ts_real.h>
 
+/* Full ~96-bit precision holds only while the lowest limb (~|x|*2^-72)
+   stays in the float normal range, i.e. |x| >= 2^-54; below that, precision
+   degrades by about one bit per halving (representation limit of the
+   format itself, independent of the algorithm). */
 struct QD_API qs_real {
   float x[4];
 

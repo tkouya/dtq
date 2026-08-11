@@ -120,6 +120,22 @@ include `<qd/ds_real.h>` etc. and use `ds_real::_ndigits` for the matching
 output precision. See [docs/DTQ_QUICKREF.en.md](docs/DTQ_QUICKREF.en.md) for
 the full operator / function / constant list.
 
+Effective range of the float-based types: a ds/ts/qs value carries its full
+precision only while its *lowest* limb stays inside the normal range of
+IEEE-754 single precision (>= 2^-126).  Since the limbs of a value x sit at
+about |x|, |x|*2^-24, |x|*2^-48, |x|*2^-72, precision degrades gracefully
+(about one bit per halving) once
+
+    |x| < 2^-102  (~2.0e-31)  for ds_real,
+    |x| < 2^-78   (~3.3e-24)  for ts_real,
+    |x| < 2^-54   (~5.5e-17)  for qs_real,
+
+independently of the algorithm that produced x -- this is a representation
+limit of the format itself, observable e.g. as division results with errors
+of tens of eps or more when the quotient falls below the threshold.  The
+double-based types are unaffected in practice (the corresponding thresholds
+are 2^-970 / 2^-918 / 2^-866).
+
 When building C++ code that uses this library, always pass
 -ffp-contract=off (or build through qd-config, which already does).
 

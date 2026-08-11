@@ -36,6 +36,10 @@
 #undef min
 #endif
 
+/* Full ~48-bit precision holds only while the low limb (~|x|*2^-24) stays
+   in the float normal range, i.e. |x| >= 2^-102; below that, precision
+   degrades by about one bit per halving (representation limit of the
+   format itself, independent of the algorithm). */
 struct QD_API ds_real {
   float x[2];
 
