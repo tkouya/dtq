@@ -3,6 +3,8 @@ SUBDIRS = config src include tests docs
 
 dist_doc_DATA = README README.md
 
+EXTRA_DIST = LICENSE
+
 doc:
 	$(MAKE) -C docs doc
 

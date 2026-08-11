@@ -7,6 +7,9 @@ EXTRA_PROGRAMS = qd_timer quadt_test huge fma_bench
 
 dist_noinst_DATA = coeff.dat
 
+# Standalone elementary-function benchmark (built via Makefile.elem_bench).
+EXTRA_DIST = elem_bench.cpp Makefile.elem_bench elem_bench_result.txt
+
 CLEANFILES=qd_timer quadt_test huge fma_bench
 
 qd_test_SOURCES = qd_test.cpp

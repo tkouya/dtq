@@ -574,6 +574,9 @@ top_srcdir = @top_srcdir@
 LDADD = $(top_builddir)/src/libqd.la
 AM_CPPFLAGS = -I$(top_builddir) -I$(top_builddir)/include -I$(top_srcdir)/include
 dist_noinst_DATA = coeff.dat
+
+# Standalone elementary-function benchmark (built via Makefile.elem_bench).
+EXTRA_DIST = elem_bench.cpp Makefile.elem_bench elem_bench_result.txt
 CLEANFILES = qd_timer quadt_test huge fma_bench
 qd_test_SOURCES = qd_test.cpp
 pslq_test_SOURCES = pslq.h pslq_test.cpp tictoc.cpp tictoc.h

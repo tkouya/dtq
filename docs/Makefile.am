@@ -5,10 +5,11 @@
 # the paper can be rebuilt with "make doc" (requires pdflatex and
 # bibtex); a normal "make" never invokes LaTeX.
 
-dist_doc_DATA = qd.pdf DTQ_QUICKREF.en.md DTQ_QUICKREF.ja.md
+dist_doc_DATA = qd.pdf dtq_fma_report.pdf DTQ_QUICKREF.en.md DTQ_QUICKREF.ja.md
 
 EXTRA_DIST = \
   qd.tex qd.bib \
+  dtq_fma_report.tex \
   nine-two-sum.eps nine-two-sum.fig \
   normal_sum_prod.eps normal_sum_prod.fig \
   qd_add.eps qd_add.fig \
