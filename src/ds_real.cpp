@@ -189,9 +189,12 @@ void    sincos(const ds_real &a, ds_real &s, ds_real &c) {
 
 /*======== Polyeval / Polyroot ========*/
 ds_real polyeval(const ds_real *c, int n, const ds_real &x) {
+  /* Horner's method, one fused multiply-add per step.  The machine-proved
+     fma keeps its error bound even when a step cancels almost completely
+     (near a root), so no separate cancellation-safe variant is needed. */
   ds_real r = c[n];
   for (int i = n - 1; i >= 0; i--) {
-    r = r * x + c[i];
+    r = dw_fma(r, x, c[i]);
   }
   return r;
 }

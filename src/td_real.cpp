@@ -848,11 +848,13 @@ QD_API td_real tdrand() {
 
 /* polyeval(c, n, x) */
 td_real polyeval(const td_real *c, int n, const td_real &x) {
+  /* Horner's method, one fused multiply-add per step.  The machine-proved
+     fma keeps its error bound even when a step cancels almost completely
+     (near a root), so no separate cancellation-safe variant is needed. */
   td_real r = c[n];
 
   for (int i = n-1; i >= 0; i--) {
-    r *= x;
-    r += c[i];
+    r = tw_fma(r, x, c[i]);
   }
 
   return r;

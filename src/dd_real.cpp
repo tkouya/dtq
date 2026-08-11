@@ -246,21 +246,23 @@ dd_real exp(const dd_real &a) {
 
   double m = std::floor(a.x[0] / dd_real::_log2.x[0] + 0.5);
   dd_real r = mul_pwr2(a - dd_real::_log2 * m, inv_k);
-  dd_real s, t, p;
+  dd_real s, p;
 
   p = sqr(r);
   s = r + mul_pwr2(p, 0.5);
   p *= r;
-  t = p * dd_real(inv_fact[0][0], inv_fact[0][1]);
+  /* Each term  s += p / i!  is one fused multiply-add; the convergence
+     test uses the leading-word product, so the term itself need not be
+     materialized. */
+  const double thresh = inv_k * dd_real::_eps;
+  double tmag;
   int i = 0;
   do {
-    s += t;
+    tmag = std::abs(to_double(p) * inv_fact[i][0]);
+    s = dw_fma(p, dd_real(inv_fact[i][0], inv_fact[i][1]), s);
     p *= r;
     ++i;
-    t = p * dd_real(inv_fact[i][0], inv_fact[i][1]);
-  } while (std::abs(to_double(t)) > inv_k * dd_real::_eps && i < 5);
-
-  s += t;
+  } while (tmag > thresh && i < 6);
 
   s = mul_pwr2(s, 2.0) + sqr(s);
   s = mul_pwr2(s, 2.0) + sqr(s);
@@ -337,21 +339,21 @@ dd_real expm1(const dd_real &a) {
     return exp(a) - 1.0;
 
   dd_real r = mul_pwr2(a, inv_k);
-  dd_real s, t, p;
+  dd_real s, p;
 
   p = sqr(r);
   s = r + mul_pwr2(p, 0.5);
   p *= r;
-  t = p * dd_real(inv_fact[0][0], inv_fact[0][1]);
+  /* Fused term accumulation, as in exp() above. */
+  const double thresh = inv_k * dd_real::_eps;
+  double tmag;
   int i = 0;
   do {
-    s += t;
+    tmag = std::abs(to_double(p) * inv_fact[i][0]);
+    s = dw_fma(p, dd_real(inv_fact[i][0], inv_fact[i][1]), s);
     p *= r;
     ++i;
-    t = p * dd_real(inv_fact[i][0], inv_fact[i][1]);
-  } while (std::abs(to_double(t)) > inv_k * dd_real::_eps && i < 5);
-
-  s += t;
+  } while (tmag > thresh && i < 6);
 
   s = mul_pwr2(s, 2.0) + sqr(s);
   s = mul_pwr2(s, 2.0) + sqr(s);
@@ -392,7 +394,8 @@ static const double cos_table [4][2] = {
    Assumes |a| <= pi/32.                           */
 static dd_real sin_taylor(const dd_real &a) {
   const double thresh = 0.5 * std::abs(to_double(a)) * dd_real::_eps;
-  dd_real r, s, t, x;
+  dd_real r, s, x;
+  double tmag;
 
   if (a.is_zero()) {
     return 0.0;
@@ -404,17 +407,20 @@ static dd_real sin_taylor(const dd_real &a) {
   r = a;
   do {
     r *= x;
-    t = r * dd_real(inv_fact[i][0], inv_fact[i][1]);
-    s += t;
+    /* s += r / i!, fused; the term magnitude for the convergence test
+       is estimated from the leading words. */
+    tmag = std::abs(to_double(r) * inv_fact[i][0]);
+    s = dw_fma(r, dd_real(inv_fact[i][0], inv_fact[i][1]), s);
     i += 2;
-  } while (i < n_inv_fact && std::abs(to_double(t)) > thresh);
+  } while (i < n_inv_fact && tmag > thresh);
 
   return s;
 }
 
 static dd_real cos_taylor(const dd_real &a) {
   const double thresh = 0.5 * dd_real::_eps;
-  dd_real r, s, t, x;
+  dd_real r, s, x;
+  double tmag;
 
   if (a.is_zero()) {
     return 1.0;
@@ -426,10 +432,10 @@ static dd_real cos_taylor(const dd_real &a) {
   int i = 1;
   do {
     r *= x;
-    t = r * dd_real(inv_fact[i][0], inv_fact[i][1]);
-    s += t;
+    tmag = std::abs(to_double(r) * inv_fact[i][0]);
+    s = dw_fma(r, dd_real(inv_fact[i][0], inv_fact[i][1]), s);
     i += 2;
-  } while (i < n_inv_fact && std::abs(to_double(t)) > thresh);
+  } while (i < n_inv_fact && tmag > thresh);
 
   return s;
 }
@@ -901,12 +907,13 @@ QD_API dd_real ddrand() {
    Evaluates the given n-th degree polynomial at x.
    The polynomial is given by the array of (n+1) coefficients. */
 dd_real polyeval(const dd_real *c, int n, const dd_real &x) {
-  /* Just use Horner's method of polynomial evaluation. */
+  /* Horner's method, one fused multiply-add per step.  The machine-proved
+     fma keeps its error bound even when a step cancels almost completely
+     (near a root), so no separate cancellation-safe variant is needed. */
   dd_real r = c[n];
-  
+
   for (int i = n-1; i >= 0; i--) {
-    r *= x;
-    r += c[i];
+    r = dw_fma(r, x, c[i]);
   }
 
   return r;

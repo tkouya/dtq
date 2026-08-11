@@ -1322,17 +1322,21 @@ qd_real exp(const qd_real &a) {
   int j2 = static_cast<int>(std::floor(r.x[0] * 8192.0 + 0.5));
   r -= j2 * (1.0 / 8192.0);                   /* exact */
 
-  qd_real s, p, t;
+  qd_real s, p;
   double thresh = qd_real::_eps;
+  double tmag;
 
   p = sqr(r);
   s = 1.0 + r + mul_pwr2(p, 0.5);
   int i = 0;
   do {
     p *= r;
-    t = p * inv_fact[i++];
-    s += t;
-  } while (std::abs(to_double(t)) > thresh && i < 13);
+    /* s += p / i!, fused; the term magnitude for the convergence test
+       is estimated from the leading words. */
+    tmag = std::abs(to_double(p) * inv_fact[i][0]);
+    s = qw_fma(p, inv_fact[i], s);
+    ++i;
+  } while (tmag > thresh && i < 13);
 
   s *= exp_table_64[j1 + 23];
   s *= exp_table_8192[j2 + 65];
@@ -1406,17 +1410,19 @@ qd_real expm1(const qd_real &a) {
     return exp(a) - 1.0;
 
   qd_real r = mul_pwr2(a, inv_k);
-  qd_real s, p, t;
+  qd_real s, p;
   double thresh = inv_k * qd_real::_eps;
+  double tmag;
 
   p = sqr(r);
   s = r + mul_pwr2(p, 0.5);
   int i = 0;
   do {
     p *= r;
-    t = p * inv_fact[i++];
-    s += t;
-  } while (std::abs(to_double(t)) > thresh && i < 9);
+    tmag = std::abs(to_double(p) * inv_fact[i][0]);
+    s = qw_fma(p, inv_fact[i], s);
+    ++i;
+  } while (tmag > thresh && i < 9);
 
   for (int j = 0; j < 16; j++)
     s = mul_pwr2(s, 2.0) + sqr(s);
@@ -2468,7 +2474,8 @@ static const qd_real cos_table [] = {
 static void sincos_taylor(const qd_real &a, 
                           qd_real &sin_a, qd_real &cos_a) {
   const double thresh = 0.5 * qd_real::_eps * std::abs(to_double(a));
-  qd_real p, s, t, x;
+  qd_real p, s, x;
+  double tmag;
 
   if (a.is_zero()) {
     sin_a = 0.0;
@@ -2482,10 +2489,10 @@ static void sincos_taylor(const qd_real &a,
   int i = 0;
   do {
     p *= x;
-    t = p * inv_fact[i];
-    s += t;
+    tmag = std::abs(to_double(p) * inv_fact[i][0]);
+    s = qw_fma(p, inv_fact[i], s);
     i += 2;
-  } while (i < n_inv_fact && std::abs(to_double(t)) > thresh);
+  } while (i < n_inv_fact && tmag > thresh);
 
   sin_a = s;
   cos_a = sqrt(1.0 - sqr(s));
@@ -2493,7 +2500,8 @@ static void sincos_taylor(const qd_real &a,
 
 static qd_real sin_taylor(const qd_real &a) {
   const double thresh = 0.5 * qd_real::_eps * std::abs(to_double(a));
-  qd_real p, s, t, x;
+  qd_real p, s, x;
+  double tmag;
 
   if (a.is_zero()) {
     return 0.0;
@@ -2505,17 +2513,18 @@ static qd_real sin_taylor(const qd_real &a) {
   int i = 0;
   do {
     p *= x;
-    t = p * inv_fact[i];
-    s += t;
+    tmag = std::abs(to_double(p) * inv_fact[i][0]);
+    s = qw_fma(p, inv_fact[i], s);
     i += 2;
-  } while (i < n_inv_fact && std::abs(to_double(t)) > thresh);
+  } while (i < n_inv_fact && tmag > thresh);
 
   return s;
 }
 
 static qd_real cos_taylor(const qd_real &a) {
   const double thresh = 0.5 * qd_real::_eps;
-  qd_real p, s, t, x;
+  qd_real p, s, x;
+  double tmag;
 
   if (a.is_zero()) {
     return 1.0;
@@ -2527,10 +2536,10 @@ static qd_real cos_taylor(const qd_real &a) {
   int i = 1;
   do {
     p *= x;
-    t = p * inv_fact[i];
-    s += t;
+    tmag = std::abs(to_double(p) * inv_fact[i][0]);
+    s = qw_fma(p, inv_fact[i], s);
     i += 2;
-  } while (i < n_inv_fact && std::abs(to_double(t)) > thresh);
+  } while (i < n_inv_fact && tmag > thresh);
 
   return s;
 }
@@ -3025,12 +3034,13 @@ QD_API qd_real qdrand() {
    Evaluates the given n-th degree polynomial at x.
    The polynomial is given by the array of (n+1) coefficients. */
 qd_real polyeval(const qd_real *c, int n, const qd_real &x) {
-  /* Just use Horner's method of polynomial evaluation. */
+  /* Horner's method, one fused multiply-add per step.  The machine-proved
+     fma keeps its error bound even when a step cancels almost completely
+     (near a root), so no separate cancellation-safe variant is needed. */
   qd_real r = c[n];
-  
+
   for (int i = n-1; i >= 0; i--) {
-    r *= x;
-    r += c[i];
+    r = qw_fma(r, x, c[i]);
   }
 
   return r;
@@ -3129,17 +3139,19 @@ td_real exp(const td_real &a) {
   int j2 = static_cast<int>(std::floor(r.x[0] * 8192.0 + 0.5));
   r -= j2 * (1.0 / 8192.0);                   /* exact */
 
-  td_real s, p, t;
+  td_real s, p;
   double thresh = td_real::_eps;
+  double tmag;
 
   p = sqr(r);
   s = 1.0 + r + mul_pwr2(p, 0.5);
   int i = 0;
   do {
     p *= r;
-    t = p * to_td_real(inv_fact[i++]);
-    s += t;
-  } while (std::abs(to_double(t)) > thresh && i < 10);
+    tmag = std::abs(to_double(p) * inv_fact[i][0]);
+    s = tw_fma(p, to_td_real(inv_fact[i]), s);
+    ++i;
+  } while (tmag > thresh && i < 10);
 
   s *= to_td_real(exp_table_64[j1 + 23]);
   s *= to_td_real(exp_table_8192[j2 + 65]);
@@ -3165,17 +3177,19 @@ td_real expm1(const td_real &a) {
     return exp(a) - 1.0;
 
   td_real r = mul_pwr2(a, inv_k);
-  td_real s, p, t;
+  td_real s, p;
   double thresh = inv_k * td_real::_eps;
+  double tmag;
 
   p = sqr(r);
   s = r + mul_pwr2(p, 0.5);
   int i = 0;
   do {
     p *= r;
-    t = p * to_td_real(inv_fact[i++]);
-    s += t;
-  } while (std::abs(to_double(t)) > thresh && i < 9);
+    tmag = std::abs(to_double(p) * inv_fact[i][0]);
+    s = tw_fma(p, to_td_real(inv_fact[i]), s);
+    ++i;
+  } while (tmag > thresh && i < 9);
 
   for (int j = 0; j < 16; j++)
     s = mul_pwr2(s, 2.0) + sqr(s);
@@ -3213,7 +3227,8 @@ static const td_real _td_pi1024 = to_td_real(_pi1024);
 static void td_sincos_taylor(const td_real &a,
                              td_real &sin_a, td_real &cos_a) {
   const double thresh = 0.5 * td_real::_eps * std::abs(to_double(a));
-  td_real p, s, t, x;
+  td_real p, s, x;
+  double tmag;
 
   if (a.is_zero()) {
     sin_a = 0.0;
@@ -3227,10 +3242,10 @@ static void td_sincos_taylor(const td_real &a,
   int i = 0;
   do {
     p *= x;
-    t = p * to_td_real(inv_fact[i]);
-    s += t;
+    tmag = std::abs(to_double(p) * inv_fact[i][0]);
+    s = tw_fma(p, to_td_real(inv_fact[i]), s);
     i += 2;
-  } while (i < n_inv_fact && std::abs(to_double(t)) > thresh);
+  } while (i < n_inv_fact && tmag > thresh);
 
   sin_a = s;
   cos_a = sqrt(1.0 - sqr(s));
@@ -3238,7 +3253,8 @@ static void td_sincos_taylor(const td_real &a,
 
 static td_real td_sin_taylor(const td_real &a) {
   const double thresh = 0.5 * td_real::_eps * std::abs(to_double(a));
-  td_real p, s, t, x;
+  td_real p, s, x;
+  double tmag;
 
   if (a.is_zero()) {
     return 0.0;
@@ -3250,17 +3266,18 @@ static td_real td_sin_taylor(const td_real &a) {
   int i = 0;
   do {
     p *= x;
-    t = p * to_td_real(inv_fact[i]);
-    s += t;
+    tmag = std::abs(to_double(p) * inv_fact[i][0]);
+    s = tw_fma(p, to_td_real(inv_fact[i]), s);
     i += 2;
-  } while (i < n_inv_fact && std::abs(to_double(t)) > thresh);
+  } while (i < n_inv_fact && tmag > thresh);
 
   return s;
 }
 
 static td_real td_cos_taylor(const td_real &a) {
   const double thresh = 0.5 * td_real::_eps;
-  td_real p, s, t, x;
+  td_real p, s, x;
+  double tmag;
 
   if (a.is_zero()) {
     return 1.0;
@@ -3272,10 +3289,10 @@ static td_real td_cos_taylor(const td_real &a) {
   int i = 1;
   do {
     p *= x;
-    t = p * to_td_real(inv_fact[i]);
-    s += t;
+    tmag = std::abs(to_double(p) * inv_fact[i][0]);
+    s = tw_fma(p, to_td_real(inv_fact[i]), s);
     i += 2;
-  } while (i < n_inv_fact && std::abs(to_double(t)) > thresh);
+  } while (i < n_inv_fact && tmag > thresh);
 
   return s;
 }
