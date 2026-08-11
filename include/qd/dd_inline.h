@@ -437,18 +437,22 @@ inline dd_real dd_real::accurate_div(const dd_real &a, const dd_real &b) {
 
 /* Long division driven by the branch-free double-word FMA.  Same
    correction sequence as accurate_div, but each residual
-   r <- r - q * b  is one fused dw_fma instead of a multiply followed by
-   a subtraction, which removes one renormalization per step. */
+   r <- r - q * b  is one fused FMA instead of a multiply followed by
+   a subtraction, which removes one renormalization per step.
+   The FMA is the div/sqrt-safe variant: the residuals entering it are
+   not guaranteed non-overlapping, so no FastTwoSum precondition can be
+   asserted here (measured cost is the same as the plain dw_fma to
+   within noise, and the safe variant is never less accurate). */
 inline dd_real dd_real::fma_div(const dd_real &a, const dd_real &b) {
   double q1, q2, q3;
   dd_real r;
 
-  q1 = a.x[0] / b.x[0];      /* approximate quotient */
+  q1 = a.x[0] / b.x[0];          /* approximate quotient */
 
-  r = dw_fma(b, -q1, a);     /* r = a - q1 * b */
+  r = dw_fma_safe(b, -q1, a);    /* r = a - q1 * b */
 
   q2 = r.x[0] / b.x[0];
-  r = dw_fma(b, -q2, r);     /* r = r - q2 * b */
+  r = dw_fma_safe(b, -q2, r);    /* r = r - q2 * b */
 
   q3 = r.x[0] / b.x[0];
 
