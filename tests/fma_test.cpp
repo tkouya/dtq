@@ -183,6 +183,33 @@ static void test_fma_exact(const char *name, S /*eps*/) {
   if (bad) n_fail++;
 }
 
+/* Complete cancellation:  with c = -(a*b) the leading words of the fused
+   multiply-add cancel almost entirely.  The machine-proved formulation must
+   keep its ordinary error bound  |error| <= few * eps * (|a*b| + |c|)  in
+   this case too -- this is what lets polyeval run on the plain fma even
+   next to a root.  (A FastTwoSum-gated renormalization without the proof
+   loses about half of its words here.) */
+template <class T, class S>
+static void test_fma_cancel(const char *name, T (*rnd)(void), S eps, double tol) {
+  double worst = 0.0;
+  const int N = 20000;
+
+  for (int i = 0; i < N; i++) {
+    T a = rnd(), b = rnd();
+    T c = -(a * b);
+    T z = fma(a, b, c);
+
+    double scale = mag(a) * mag(b) + mag(c);
+    if (scale == 0.0) continue;
+    double u = residual(a, b, c, z) / (scale * static_cast<double>(eps));
+    if (u > worst) worst = u;
+  }
+
+  char buf[128];
+  std::sprintf(buf, "%s  cancellation", name);
+  report(buf, worst, tol);
+}
+
 /* a / b :  b * (a/b) must reproduce a to within a few eps. */
 template <class T, class S>
 static void test_div(const char *name, T (*rnd)(void), S eps, double tol) {
@@ -247,6 +274,14 @@ int main() {
   test_fma_exact<ds_real, float>("ds_real (dw_fma)", ds_real::_eps);
   test_fma_exact<ts_real, float>("ts_real (tw_fma)", ts_real::_eps);
   test_fma_exact<qs_real, float>("qs_real (qw_fma)", qs_real::_eps);
+
+  printf("\ncomplete cancellation  (c = -(a*b), errors relative to |a*b| + |c|)\n");
+  test_fma_cancel<dd_real, double>("dd_real (dw_fma)", ddrand, dd_real::_eps, 8.0);
+  test_fma_cancel<td_real, double>("td_real (tw_fma)", tdrand, td_real::_eps, 8.0);
+  test_fma_cancel<qd_real, double>("qd_real (qw_fma)", qdrand, qd_real::_eps, 8.0);
+  test_fma_cancel<ds_real, float>("ds_real (dw_fma)", dsrand, ds_real::_eps, 8.0);
+  test_fma_cancel<ts_real, float>("ts_real (tw_fma)", tsrand, ts_real::_eps, 8.0);
+  test_fma_cancel<qs_real, float>("qs_real (qw_fma)", qsrand, qs_real::_eps, 8.0);
 
   printf("\ndivision (built on the fused multiply-add)\n");
   test_div<dd_real, double>("dd_real", ddrand, dd_real::_eps, 8.0);
